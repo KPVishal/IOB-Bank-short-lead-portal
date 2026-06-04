@@ -1,0 +1,69 @@
+services:
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: iob-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+
+  mysql:
+    image: mysql:8.0
+    container_name: iob-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${DB_NAME:-iob_portal}
+      MYSQL_USER: ${DB_USER:-iob}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-iobpass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: iob-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-iob_portal}
+      DB_USER: ${DB_USER:-iob}
+      DB_PASSWORD: ${DB_PASSWORD:-iobpass}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-must-be-at-least-256-bits-long-for-hs256-signing}
+      BOOTSTRAP_ENABLED: "true"
+      MAIL_HOST: mailhog
+      MAIL_PORT: "1025"
+      MAIL_AUTH: "false"
+      MAIL_STARTTLS: "false"
+      EMAIL_ENABLED: "true"
+      FRONTEND_BASE_URL: http://localhost:5173
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: iob-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_TARGET: http://backend:8080
+    ports:
+      - "5173:5173"
+
+volumes:
+  mysql-data:

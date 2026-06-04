@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bp-purple: #5B2C6F;
+  --bp-deep: #3F1D4F;
+  --iob-blue: #0E57A5;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #f5f5f5;
+  color: #1f2937;
+}
