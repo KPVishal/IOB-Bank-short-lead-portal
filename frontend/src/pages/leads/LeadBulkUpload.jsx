@@ -45,9 +45,14 @@ export default function LeadBulkUpload() {
     return res.content || [];
   }, []);
 
-  const onPickBranch = (val) => {
-    setSoleIdInput(typeof val === 'string' ? val : val?.soleId || '');
-    setBranch(val && typeof val === 'object' ? val : null);
+  const onPickBranch = (val, item) => {
+    if (item && typeof item === 'object') {
+      setSoleIdInput(item.soleId || val);
+      setBranch(item);
+    } else {
+      setSoleIdInput(typeof val === 'string' ? val : '');
+      setBranch(null);
+    }
     setParsed(null);
     setResults(null);
   };
@@ -98,10 +103,10 @@ export default function LeadBulkUpload() {
     }
   };
 
-  const buildPayloadForRow = (row, regionDetails) => ({
+  const buildPayloadForRow = (row) => ({
     merchant_name: row.merchantName,
     contact_name: row.contactName,
-    region: regionDetails?.region || '',
+    region: '',
     bank_region: branch.bankRegion || '',
     bank_city: branch.city || '',
     bank_pincode: Number(branch.pincode),
@@ -111,8 +116,8 @@ export default function LeadBulkUpload() {
     email_id: row.email,
     merchant_address: row.address,
     pincode: Number(row.pincode),
-    state: regionDetails?.state || '',
-    city: regionDetails?.city || '',
+    state: row.state || '',
+    city: row.city || '',
     bank: LEAD_SOURCE_IOB,
     device_type: row.deviceModel,
     branch_code: branch.soleId,
@@ -132,13 +137,7 @@ export default function LeadBulkUpload() {
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
       try {
-        let details = null;
-        try {
-          details = await bijlipayApi.fetchPincodeDetails(row.pincode);
-        } catch {
-          // proceed with empty region/state/city
-        }
-        const payload = buildPayloadForRow(row, details);
+        const payload = buildPayloadForRow(row);
         const resp = await bijlipayApi.submitLead(payload);
         succeeded.push({ row, response: resp });
       } catch (e) {
@@ -208,7 +207,7 @@ export default function LeadBulkUpload() {
             <div className="font-semibold mb-1 text-bp-purple">Template columns</div>
             <div className="text-xs">
               Merchant Name, Contact Name, Contact Number, Alternate Number, Email, Merchant Address,
-              Pincode, Device Type (Android POS / All-in-One POS), Device Count.
+              Pincode, State, City, Device Type (Android POS / All-in-One POS), Device Count.
             </div>
           </div>
           <button

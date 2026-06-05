@@ -21,11 +21,14 @@ export default function CreateUserModal({ open, onClose, onCreated }) {
     return res.content || [];
   }, []);
 
-  const onPickBranch = (val) => {
-    setSoleIdInput(typeof val === 'string' ? val : val?.soleId || '');
-    if (val && typeof val === 'object') {
-      setForm((f) => ({ ...f, branch: val }));
+  const onPickBranch = (val, item) => {
+    // `item` arrives only when the user selects from the dropdown.
+    // Plain typing only fires the string `val`.
+    if (item && typeof item === 'object') {
+      setSoleIdInput(item.soleId || val);
+      setForm((f) => ({ ...f, branch: item }));
     } else {
+      setSoleIdInput(typeof val === 'string' ? val : '');
       setForm((f) => ({ ...f, branch: null }));
     }
   };

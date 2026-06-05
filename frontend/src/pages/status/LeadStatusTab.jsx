@@ -19,9 +19,9 @@ export default function LeadStatusTab() {
     try {
       let data;
       if (isAdmin) {
-        data = await bijlipayApi.leadDeviceDetailsAdmin({ page, size: PAGE_SIZE });
+        data = await bijlipayApi.adminLeadStatus({ page, size: PAGE_SIZE });
       } else {
-        data = await bijlipayApi.leadTrackerBranch({ bankEmpPh: user?.mobile });
+        data = await bijlipayApi.branchLeadStatus({ bankEmpPh: user?.mobile });
       }
       const { items, totalElements, totalPages } = normalizeListing(data, page);
       setRows(items);

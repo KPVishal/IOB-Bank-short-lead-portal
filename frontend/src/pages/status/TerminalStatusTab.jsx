@@ -19,8 +19,8 @@ export default function TerminalStatusTab() {
     setErr('');
     try {
       const data = isAdmin
-        ? await bijlipayApi.terminalStatusAdmin({ page, size: PAGE_SIZE })
-        : await bijlipayApi.terminalStatusBranch({ bankEmpPh: user?.mobile, page, size: PAGE_SIZE });
+        ? await bijlipayApi.adminTerminalStatus({ page, size: PAGE_SIZE })
+        : await bijlipayApi.branchTerminalStatus({ bankEmpPh: user?.mobile, page, size: PAGE_SIZE });
       const { items, totalElements, totalPages } = normalizeListing(data, page);
       setRows(items);
       setMeta({ total: totalElements, totalPages });

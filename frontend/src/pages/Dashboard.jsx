@@ -34,8 +34,8 @@ export default function Dashboard() {
           out.totalUsers = usersAll.totalElements ?? 0;
 
           const [leads, terminals] = await Promise.allSettled([
-            bijlipayApi.leadDeviceDetailsAdmin({ page: 0, size: 1 }),
-            bijlipayApi.terminalStatusAdmin({ page: 0, size: 100 }),
+            bijlipayApi.adminLeadStatus({ page: 0, size: 1 }),
+            bijlipayApi.adminTerminalStatus({ page: 0, size: 100 }),
           ]);
           if (leads.status === 'fulfilled') {
             const norm = normalizeListing(leads.value, 0);
@@ -64,8 +64,8 @@ export default function Dashboard() {
             out.leadsError = 'No mobile on profile to query leads';
           } else {
             const [leads, terminals] = await Promise.allSettled([
-              bijlipayApi.leadTrackerBranch({ bankEmpPh: user.mobile }),
-              bijlipayApi.terminalStatusBranch({ bankEmpPh: user.mobile, page: 0, size: 100 }),
+              bijlipayApi.branchLeadStatus({ bankEmpPh: user.mobile }),
+              bijlipayApi.branchTerminalStatus({ bankEmpPh: user.mobile, page: 0, size: 100 }),
             ]);
             if (leads.status === 'fulfilled') {
               const norm = normalizeListing(leads.value, 0);

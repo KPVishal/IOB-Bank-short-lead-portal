@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
  * Reusable autocomplete.
  *
  * Props:
- * - value, onChange: controlled string value
+ * - value, onChange: controlled string value. onChange is called as
+ *     onChange(stringValue)         // when the user types
+ *     onChange(stringLabel, item)   // when the user picks from the dropdown
+ *   Consumers that only need the string can ignore the second arg; consumers
+ *   that need the full object (e.g. a branch row) read `item`.
  * - placeholder
  * - options: static array of strings OR objects (when objects, set getLabel)
  * - getLabel: (item) => string                 // optional, defaults to identity
@@ -63,7 +67,7 @@ export default function Autocomplete({
   }, []);
 
   const choose = (item) => {
-    onChange(getLabel(item));
+    onChange(getLabel(item), item);
     setOpen(false);
   };
 

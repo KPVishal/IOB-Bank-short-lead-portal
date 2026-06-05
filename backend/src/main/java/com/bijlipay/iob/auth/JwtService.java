@@ -19,10 +19,8 @@ import java.util.Map;
 public class JwtService {
 
     public static final String PURPOSE_ACCESS = "ACCESS";
-    public static final String PURPOSE_OTP_CHALLENGE = "OTP_CHALLENGE";
     public static final String PURPOSE_CHANGE_PASSWORD = "CHANGE_PASSWORD";
 
-    private static final long OTP_CHALLENGE_MINUTES = 5;
     private static final long CHANGE_PASSWORD_MINUTES = 15;
 
     private final SecretKey key;
@@ -38,10 +36,6 @@ public class JwtService {
 
     public String generateAccessToken(String email, String role) {
         return buildToken(email, role, PURPOSE_ACCESS, Map.of(), accessTokenExpiryMinutes);
-    }
-
-    public String generateOtpChallenge(String email, String role) {
-        return buildToken(email, role, PURPOSE_OTP_CHALLENGE, Map.of(), OTP_CHALLENGE_MINUTES);
     }
 
     public String generateChangePasswordToken(String email, String role) {

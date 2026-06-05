@@ -4,7 +4,6 @@ import com.bijlipay.iob.auth.dto.ChangePasswordRequest;
 import com.bijlipay.iob.auth.dto.LoginRequest;
 import com.bijlipay.iob.auth.dto.LoginResponse;
 import com.bijlipay.iob.auth.dto.MeResponse;
-import com.bijlipay.iob.auth.dto.OtpVerifyRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -24,11 +23,6 @@ public class AuthController {
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
-    }
-
-    @PostMapping("/verify-otp")
-    public LoginResponse verifyOtp(@Valid @RequestBody OtpVerifyRequest request) {
-        return authService.verifyOtp(request);
     }
 
     @PostMapping("/change-password")

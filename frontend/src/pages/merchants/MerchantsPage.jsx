@@ -29,7 +29,10 @@ export default function MerchantsPage() {
     setLoading(true);
     setErr('');
     try {
-      const data = await bijlipayApi.terminalStatusAdmin({ page, size: PAGE_SIZE });
+      // Per the corrected doc, Merchant Details uses the SAME endpoint as
+      // Admin Lead Status (lead-view-tracker-admin), then classifies rows by
+      // their MARS terminal status code into Active / Inactive.
+      const data = await bijlipayApi.adminLeadStatus({ page, size: PAGE_SIZE });
       const { items, totalElements, totalPages } = normalizeListing(data, page);
       setRows(items.map(expandMerchantFields));
       setMeta({ total: totalElements, totalPages });

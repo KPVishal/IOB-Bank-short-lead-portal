@@ -4,9 +4,7 @@ import com.bijlipay.iob.auth.dto.ChangePasswordRequest;
 import com.bijlipay.iob.auth.dto.LoginRequest;
 import com.bijlipay.iob.auth.dto.LoginResponse;
 import com.bijlipay.iob.auth.dto.MeResponse;
-import com.bijlipay.iob.auth.dto.OtpVerifyRequest;
 import com.bijlipay.iob.common.exception.ApiException;
-import com.bijlipay.iob.user.Role;
 import com.bijlipay.iob.user.User;
 import com.bijlipay.iob.user.UserRepository;
 import com.bijlipay.iob.user.UserStatus;
@@ -44,42 +42,8 @@ public class AuthService {
             return LoginResponse.changePasswordRequired(token);
         }
 
-        if (user.getRole() == Role.ADMIN) {
-            String challenge = jwtService.generateOtpChallenge(user.getEmail(), user.getRole().name());
-            return LoginResponse.otpRequired(challenge);
-        }
-
-        String token = jwtService.generateAccessToken(user.getEmail(), user.getRole().name());
-        return LoginResponse.done(token, jwtService.getAccessTokenExpirySeconds(), MeResponse.from(user));
-    }
-
-    public LoginResponse verifyOtp(OtpVerifyRequest req) {
-        Claims claims;
-        try {
-            claims = jwtService.parse(req.challengeToken());
-        } catch (JwtException e) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Invalid or expired OTP challenge");
-        }
-
-        if (!JwtService.PURPOSE_OTP_CHALLENGE.equals(claims.get("purpose"))) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Invalid OTP challenge");
-        }
-
-        // Mock OTP — any 6 digits succeed. Replace with real verification when integrating SMS/email gateway.
-
-        String email = claims.getSubject();
-        User user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "User no longer exists"));
-
-        if (user.getStatus() == UserStatus.INACTIVE) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Your account is inactive.");
-        }
-
-        if (user.isMustChangePassword()) {
-            String t = jwtService.generateChangePasswordToken(user.getEmail(), user.getRole().name());
-            return LoginResponse.changePasswordRequired(t);
-        }
-
+        // OTP step intentionally removed — both ADMIN and BRANCH_MANAGER receive an
+        // ACCESS token directly after credentials are validated.
         String token = jwtService.generateAccessToken(user.getEmail(), user.getRole().name());
         return LoginResponse.done(token, jwtService.getAccessTokenExpirySeconds(), MeResponse.from(user));
     }
@@ -115,10 +79,7 @@ public class AuthService {
         user.setMustChangePassword(false);
         userRepository.save(user);
 
-        if (user.getRole() == Role.ADMIN) {
-            String challenge = jwtService.generateOtpChallenge(user.getEmail(), user.getRole().name());
-            return LoginResponse.otpRequired(challenge);
-        }
+        // OTP step intentionally removed — issue ACCESS token straight after password change.
         String token = jwtService.generateAccessToken(user.getEmail(), user.getRole().name());
         return LoginResponse.done(token, jwtService.getAccessTokenExpirySeconds(), MeResponse.from(user));
     }

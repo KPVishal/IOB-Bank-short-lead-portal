@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/auth.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -13,26 +13,18 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [step, setStep] = useState('CREDENTIALS');
-  const [challenge, setChallenge] = useState(null);
   const [changeToken, setChangeToken] = useState(null);
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [showNewPw, setShowNewPw] = useState(false);
   const [err, setErr] = useState('');
   const [info, setInfo] = useState('');
   const [busy, setBusy] = useState(false);
-  const otpRefs = useRef([]);
 
   if (user) return <Navigate to={redirectTo} replace />;
 
   const handleStepResponse = (res) => {
-    if (res.step === 'OTP') {
-      setChallenge(res.challengeToken);
-      setStep('OTP');
-      setOtp(['', '', '', '', '', '']);
-      setTimeout(() => otpRefs.current[0]?.focus(), 50);
-    } else if (res.step === 'CHANGE_PASSWORD') {
+    if (res.step === 'CHANGE_PASSWORD') {
       setChangeToken(res.changeToken);
       setStep('CHANGE_PASSWORD');
       setNewPw('');
@@ -54,16 +46,6 @@ export default function Login() {
     } finally { setBusy(false); }
   };
 
-  const submitOtp = async (e) => {
-    e.preventDefault();
-    setErr(''); setBusy(true);
-    try {
-      handleStepResponse(await authApi.verifyOtp(challenge, otp.join('')));
-    } catch (e) {
-      setErr(e.response?.data?.message || 'OTP verification failed');
-    } finally { setBusy(false); }
-  };
-
   const submitChangePassword = async (e) => {
     e.preventDefault();
     setErr('');
@@ -77,28 +59,8 @@ export default function Login() {
     } finally { setBusy(false); }
   };
 
-  const onOtpChange = (idx, val) => {
-    const v = val.replace(/\D/g, '').slice(0, 1);
-    const next = [...otp]; next[idx] = v; setOtp(next);
-    if (v && idx < 5) otpRefs.current[idx + 1]?.focus();
-  };
-  const onOtpKey = (idx, e) => {
-    if (e.key === 'Backspace' && !otp[idx] && idx > 0) otpRefs.current[idx - 1]?.focus();
-  };
-  const onOtpPaste = (e) => {
-    const text = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
-    if (!text) return;
-    e.preventDefault();
-    const next = ['', '', '', '', '', ''];
-    for (let i = 0; i < text.length; i++) next[i] = text[i];
-    setOtp(next);
-    otpRefs.current[Math.min(text.length, 5)]?.focus();
-  };
-
   const goBackToCredentials = () => {
     setStep('CREDENTIALS');
-    setOtp(['', '', '', '', '', '']);
-    setChallenge(null);
     setChangeToken(null);
     setNewPw(''); setConfirmPw('');
     setErr(''); setInfo('');
@@ -106,12 +68,10 @@ export default function Login() {
 
   const titleMap = {
     CREDENTIALS: 'Welcome back',
-    OTP: 'Enter OTP',
     CHANGE_PASSWORD: 'Set a new password',
   };
   const subtitleMap = {
     CREDENTIALS: 'Sign in to continue',
-    OTP: 'Check your authenticator or messages',
     CHANGE_PASSWORD: 'Required on first login',
   };
 
@@ -165,31 +125,6 @@ export default function Login() {
             </form>
           )}
 
-          {step === 'OTP' && (
-            <form onSubmit={submitOtp} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-action text-gray-600 mb-2">Enter OTP</label>
-                <div className="flex gap-2 justify-between" onPaste={onOtpPaste}>
-                  {otp.map((d, i) => (
-                    <input key={i} ref={(el) => (otpRefs.current[i] = el)}
-                      value={d}
-                      onChange={(e) => onOtpChange(i, e.target.value)}
-                      onKeyDown={(e) => onOtpKey(i, e)}
-                      maxLength={1} inputMode="numeric"
-                      className="w-12 h-14 text-center text-xl font-semibold border-2 rounded focus:outline-none focus:border-bp-purple" />
-                  ))}
-                </div>
-                <p className="text-xs text-gray-500 mt-2">Demo mode: any 6 digits will verify.</p>
-              </div>
-              <button type="submit" disabled={busy || otp.some((d) => !d)}
-                className="w-full py-2.5 bg-bp-purple text-white rounded font-semibold tracking-action uppercase hover:bg-bp-deep disabled:opacity-60">
-                {busy ? 'Verifying…' : 'Verify OTP'}
-              </button>
-              <button type="button" onClick={goBackToCredentials}
-                className="w-full text-sm text-gray-500 hover:text-bp-purple">← Back to login</button>
-            </form>
-          )}
-
           {step === 'CHANGE_PASSWORD' && (
             <form onSubmit={submitChangePassword} className="space-y-4">
               <Field label="New password">
@@ -222,7 +157,7 @@ export default function Login() {
             <div className="mt-8 p-4 bg-bp-pink border border-bp-lavender rounded text-xs text-gray-700">
               <div className="font-semibold mb-2 text-bp-purple uppercase tracking-action text-[11px]">Demo credentials</div>
               <div className="space-y-1 leading-relaxed">
-                <div><b>Admin</b> (OTP required): <code>rejin@bijlipay.co.in</code> / <code>Bijli@123</code></div>
+                <div><b>Admin</b>: <code>rejin@bijlipay.co.in</code> / <code>Bijli@123</code></div>
                 <div><b>Branch Manager</b>: <code>ravi.kumar@iob.in</code> / <code>Branch@123</code></div>
                 <div><b>Branch Manager</b>: <code>branch.user@iob.in</code> / <code>Branch@123</code></div>
                 <div><b>Inactive</b> (blocked): <code>anitha.s@iob.in</code> / <code>Branch@123</code></div>

@@ -17,6 +17,7 @@ const bijlipay = axios.create({
 });
 
 export const bijlipayApi = {
+  // ── Pincode lookup (kept for future use; currently disabled in the UI) ──
   searchPincodes: (searchTerm) =>
     bijlipay
       .get('/api/fetchPinCodeList', { params: { searchTerm } })
@@ -27,27 +28,35 @@ export const bijlipayApi = {
       .get(`/api/fetchBpRegionDetailsBasedOnPincode/${pincode}`)
       .then((r) => normalizePincodeDetails(r.data)),
 
+  // ── Lead submission ──
   submitLead: (payload) =>
     bijlipay.post('/api/directBank-short-lead/1', payload).then((r) => r.data),
 
-  leadTrackerBranch: ({ bankEmpPh, leadSource = LEAD_SOURCE_IOB }) =>
+  // ── Lead Status — pipeline view ──
+  // Branch User sees their own (filtered by bankEmpPh).
+  // Admin sees all leads under the lead source.
+  // Per the corrected doc, BOTH the branch and admin endpoints use the
+  // `lead-view-tracker[-admin]` family.
+  branchLeadStatus: ({ bankEmpPh, leadSource = LEAD_SOURCE_IOB }) =>
     bijlipay
       .get('/api/lead-view-tracker', { params: { bankEmpPh, leadSource } })
       .then((r) => r.data),
 
-  leadDeviceDetailsAdmin: ({ leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
+  adminLeadStatus: ({ leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
     bijlipay
-      .get('/api/lead-device-details-admin', { params: { leadSource, page, size } })
+      .get('/api/lead-view-tracker-admin', { params: { leadSource, page, size } })
       .then((r) => r.data),
 
-  terminalStatusBranch: ({ bankEmpPh, leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
+  // ── Terminal Status — device-level view ──
+  // Per the corrected doc, both endpoints use the `lead-device-details[-admin]` family.
+  branchTerminalStatus: ({ bankEmpPh, leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
     bijlipay
       .get('/api/lead-device-details', { params: { leadSource, bankEmpPh, page, size } })
       .then((r) => r.data),
 
-  terminalStatusAdmin: ({ leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
+  adminTerminalStatus: ({ leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
     bijlipay
-      .get('/api/lead-view-tracker-admin', { params: { leadSource, page, size } })
+      .get('/api/lead-device-details-admin', { params: { leadSource, page, size } })
       .then((r) => r.data),
 };
 

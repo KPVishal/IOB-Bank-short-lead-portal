@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { branchesApi } from '../../api/branches.js';
 import {
@@ -58,39 +58,17 @@ export default function LeadSingleForm() {
     return res.content || [];
   }, []);
 
-  const onPickBranch = (val) => {
-    setSoleIdInput(typeof val === 'string' ? val : val?.soleId || '');
-    setBranch(val && typeof val === 'object' ? val : null);
+  const onPickBranch = (val, item) => {
+    if (item && typeof item === 'object') {
+      setSoleIdInput(item.soleId || val);
+      setBranch(item);
+    } else {
+      setSoleIdInput(typeof val === 'string' ? val : '');
+      setBranch(null);
+    }
   };
 
   const update = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
-  // Pincode autocomplete & region auto-fill
-  const fetchPincodes = useCallback(
-    (q) => bijlipayApi.searchPincodes(q || '').catch(() => []),
-    []
-  );
-
-  const onPickPincode = async (val) => {
-    const raw = typeof val === 'string' ? val : val?.pincode || '';
-    const onlyDigits = raw.replace(/\D/g, '').slice(0, 6);
-    update('pincode', onlyDigits);
-    if (onlyDigits.length === 6) {
-      try {
-        const details = await bijlipayApi.fetchPincodeDetails(onlyDigits);
-        if (details) {
-          setForm((f) => ({
-            ...f,
-            state: details.state || f.state,
-            city: details.city || f.city,
-            region: details.region || f.region,
-          }));
-        }
-      } catch {
-        // silent — user can still fill manually
-      }
-    }
-  };
 
   const validate = () => {
     if (!branch) return 'Pick a Sole ID first';
@@ -257,32 +235,28 @@ export default function LeadSingleForm() {
               className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple" />
           </Field>
           <Field label="Merchant Pincode *">
-            <Autocomplete
-              value={form.pincode}
-              onChange={onPickPincode}
-              fetchOptions={fetchPincodes}
-              minChars={3}
-              getLabel={(p) => (typeof p === 'string' ? p : p?.pincode || '')}
-              getSecondary={(p) => (typeof p === 'object' ? p?.region || p?.area || p?.city || '' : '')}
-              placeholder="Type first 3+ digits…"
-            />
+            <input value={form.pincode}
+              onChange={(e) => update('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+              inputMode="numeric" maxLength={6} placeholder="6-digit pincode"
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple" />
           </Field>
-          <Field label="State">
+          <Field label="State *">
             <input value={form.state}
               onChange={(e) => update('state', e.target.value)} maxLength={100}
               className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple"
-              placeholder="Auto-filled from pincode" />
+              placeholder="e.g. Tamil Nadu" />
           </Field>
-          <Field label="City">
+          <Field label="City *">
             <input value={form.city}
               onChange={(e) => update('city', e.target.value)} maxLength={100}
               className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple"
-              placeholder="Auto-filled from pincode" />
+              placeholder="e.g. Chennai" />
           </Field>
-          <Field label="Region (from Pincode API)">
-            <input value={form.region} disabled
-              className="w-full px-3 py-2 border rounded bg-gray-100 text-gray-700"
-              placeholder="Auto-filled from pincode" />
+          <Field label="Region">
+            <input value={form.region}
+              onChange={(e) => update('region', e.target.value)} maxLength={50}
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple"
+              placeholder="Optional, e.g. South-1" />
           </Field>
           <Field label="Merchant Address *">
             <textarea value={form.address}
