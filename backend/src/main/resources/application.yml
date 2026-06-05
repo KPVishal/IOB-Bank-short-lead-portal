@@ -54,6 +54,11 @@ app:
     base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
   user-defaults:
     password: ${USER_DEFAULT_PASSWORD:Welcome@123}
+  bijlipay:
+    base-url: ${BIJLIPAY_BASE_URL:http://qaapp.bijlipay.co.in:8353}
+    connect-timeout-ms: ${BIJLIPAY_CONNECT_TIMEOUT_MS:15000}
+    read-timeout-ms: ${BIJLIPAY_READ_TIMEOUT_MS:30000}
+    lead-source: ${BIJLIPAY_LEAD_SOURCE:LS_INDIAN OVERSEAS BANK}
 
 logging:
   level:

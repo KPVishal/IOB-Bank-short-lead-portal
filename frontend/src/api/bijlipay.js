@@ -1,7 +1,20 @@
-import axios from 'axios';
+import client from './client.js';
 
-const BIJLIPAY_BASE =
-  import.meta.env.VITE_BIJLIPAY_API_BASE || 'http://qaapp.bijlipay.co.in:8353';
+// All Bijlipay (Skilworth Mars) calls now go through our Spring backend at
+// /api/bijlipay/*. Spring forwards each request to qaapp.bijlipay.co.in:8353
+// (configurable via BIJLIPAY_BASE_URL env var on the backend).
+//
+// Why proxy instead of calling Bijlipay direct from the browser?
+//   - Bijlipay QA is IP-whitelisted. With the proxy, only one IP — the AWS
+//     EC2 box's public IP — needs to be allow-listed. Every user laptop
+//     hitting the portal benefits automatically.
+//   - Same-origin requests skip CORS entirely (Bijlipay's CORS headers don't
+//     matter when we're not crossing origins).
+//   - The portal's JWT auth already covers /api/*, so anonymous callers
+//     can't proxy through us to abuse Bijlipay.
+//
+// To re-enable direct browser → Bijlipay calls (not recommended), point
+// `client` at qaapp directly and drop the /bijlipay/ path segment.
 
 export const LEAD_SOURCE_IOB = 'LS_INDIAN OVERSEAS BANK';
 
@@ -10,53 +23,42 @@ export const DEVICE_OPTIONS = [
   { label: 'All-in-One POS', model: 'Q161_PRO_SQR' },
 ];
 
-const bijlipay = axios.create({
-  baseURL: BIJLIPAY_BASE,
-  headers: { 'Content-Type': 'application/json' },
-  timeout: 30000,
-});
-
 export const bijlipayApi = {
   // ── Pincode lookup (kept for future use; currently disabled in the UI) ──
   searchPincodes: (searchTerm) =>
-    bijlipay
-      .get('/api/fetchPinCodeList', { params: { searchTerm } })
+    client
+      .get('/api/bijlipay/fetchPinCodeList', { params: { searchTerm } })
       .then((r) => normalizePincodeList(r.data)),
 
   fetchPincodeDetails: (pincode) =>
-    bijlipay
-      .get(`/api/fetchBpRegionDetailsBasedOnPincode/${pincode}`)
+    client
+      .get(`/api/bijlipay/fetchBpRegionDetailsBasedOnPincode/${pincode}`)
       .then((r) => normalizePincodeDetails(r.data)),
 
   // ── Lead submission ──
   submitLead: (payload) =>
-    bijlipay.post('/api/directBank-short-lead/1', payload).then((r) => r.data),
+    client.post('/api/bijlipay/directBank-short-lead/1', payload).then((r) => r.data),
 
   // ── Lead Status — pipeline view ──
-  // Branch User sees their own (filtered by bankEmpPh).
-  // Admin sees all leads under the lead source.
-  // Per the corrected doc, BOTH the branch and admin endpoints use the
-  // `lead-view-tracker[-admin]` family.
   branchLeadStatus: ({ bankEmpPh, leadSource = LEAD_SOURCE_IOB }) =>
-    bijlipay
-      .get('/api/lead-view-tracker', { params: { bankEmpPh, leadSource } })
+    client
+      .get('/api/bijlipay/lead-view-tracker', { params: { bankEmpPh, leadSource } })
       .then((r) => r.data),
 
   adminLeadStatus: ({ leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
-    bijlipay
-      .get('/api/lead-view-tracker-admin', { params: { leadSource, page, size } })
+    client
+      .get('/api/bijlipay/lead-view-tracker-admin', { params: { leadSource, page, size } })
       .then((r) => r.data),
 
   // ── Terminal Status — device-level view ──
-  // Per the corrected doc, both endpoints use the `lead-device-details[-admin]` family.
   branchTerminalStatus: ({ bankEmpPh, leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
-    bijlipay
-      .get('/api/lead-device-details', { params: { leadSource, bankEmpPh, page, size } })
+    client
+      .get('/api/bijlipay/lead-device-details', { params: { leadSource, bankEmpPh, page, size } })
       .then((r) => r.data),
 
   adminTerminalStatus: ({ leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
-    bijlipay
-      .get('/api/lead-device-details-admin', { params: { leadSource, page, size } })
+    client
+      .get('/api/bijlipay/lead-device-details-admin', { params: { leadSource, page, size } })
       .then((r) => r.data),
 };
 
