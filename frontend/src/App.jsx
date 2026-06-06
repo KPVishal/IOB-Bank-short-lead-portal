@@ -10,6 +10,8 @@ import UsersPage from './pages/users/UsersPage.jsx';
 import LeadEntryPage from './pages/leads/LeadEntryPage.jsx';
 import StatusTrackerPage from './pages/status/StatusTrackerPage.jsx';
 import MerchantsPage from './pages/merchants/MerchantsPage.jsx';
+import TransactionsPage from './pages/transactions/TransactionsPage.jsx';
+import SettledTransactionsPage from './pages/settled/SettledTransactionsPage.jsx';
 
 export default function App() {
   return (
@@ -28,8 +30,8 @@ export default function App() {
         <Route path="/lead-entry"     element={<LeadEntryPage />} />
         <Route path="/status-tracker" element={<StatusTrackerPage />} />
         <Route path="/merchants"      element={<RoleGuard allow={['ADMIN']}><MerchantsPage /></RoleGuard>} />
-        <Route path="/transactions"   element={<RoleGuard allow={['ADMIN']}><PlaceholderPage title="Transactions" subtitle="Card and UPI transactions across all merchants." /></RoleGuard>} />
-        <Route path="/settled"        element={<RoleGuard allow={['ADMIN']}><PlaceholderPage title="Settled Transactions" subtitle="MDR, GST, and net settlement breakdown." /></RoleGuard>} />
+        <Route path="/transactions"   element={<RoleGuard allow={['ADMIN']}><TransactionsPage /></RoleGuard>} />
+        <Route path="/settled"        element={<RoleGuard allow={['ADMIN']}><SettledTransactionsPage /></RoleGuard>} />
         <Route path="/users"          element={<RoleGuard allow={['ADMIN']}><UsersPage /></RoleGuard>} />
         <Route path="/branches"       element={<RoleGuard allow={['ADMIN']}><BranchesPage /></RoleGuard>} />
       </Route>

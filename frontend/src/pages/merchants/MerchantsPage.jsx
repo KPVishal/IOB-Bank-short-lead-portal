@@ -34,7 +34,15 @@ export default function MerchantsPage() {
       // their MARS terminal status code into Active / Inactive.
       const data = await bijlipayApi.adminLeadStatus({ page, size: PAGE_SIZE });
       const { items, totalElements, totalPages } = normalizeListing(data, page);
-      setRows(items.map(expandMerchantFields));
+      // Per the IOB spec, only Active {5,6,7,8} and Inactive {2,3} leads
+      // show up here. Codes 1, 4, 13, 14 are excluded entirely.
+      const shown = items
+        .map(expandMerchantFields)
+        .filter((r) => {
+          const c = Number(r.statusCode);
+          return ACTIVE_STATUS_CODES.has(c) || INACTIVE_STATUS_CODES.has(c);
+        });
+      setRows(shown);
       setMeta({ total: totalElements, totalPages });
     } catch (e) {
       setErr(e.response?.data?.message || e.message || 'Could not load merchant details');

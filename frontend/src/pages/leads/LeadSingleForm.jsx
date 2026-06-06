@@ -21,6 +21,7 @@ const EMPTY_MERCHANT = {
   region: '',
   deviceLabel: DEVICE_OPTIONS[0].label,
   deviceCount: 1,
+  bankempPhn: '',
 };
 
 export default function LeadSingleForm() {
@@ -33,30 +34,62 @@ export default function LeadSingleForm() {
   const [submitOk, setSubmitOk] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Branch User: auto-load their own branch by sole ID
+  // Default Bank Employee Phone to the logged-in user's mobile on first
+  // hydration. Stays editable; user can override or clear.
+  useEffect(() => {
+    if (user?.mobile) {
+      setForm((f) => (f.bankempPhn ? f : { ...f, bankempPhn: user.mobile }));
+    }
+  }, [user?.mobile]);
+
+  // Branch User: branch info is embedded in /api/auth/me as user.branch,
+  // so no extra API call is needed (and a branch user can't call
+  // /api/branches anyway — that endpoint is admin-only).
   useEffect(() => {
     if (isAdmin) return;
-    if (!user?.soleId) return;
-    setLoadingBranch(true);
-    branchesApi
-      .list({ q: user.soleId, size: 5 })
-      .then((res) => {
-        const match = (res.content || []).find(
-          (b) => b.soleId?.toLowerCase() === user.soleId.toLowerCase()
-        );
-        if (match) {
-          setBranch(match);
-          setSoleIdInput(match.soleId);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoadingBranch(false));
+    if (user?.branch) {
+      setBranch(user.branch);
+      setSoleIdInput(user.branch.soleId);
+      setLoadingBranch(false);
+    } else if (user) {
+      // Auth context has hydrated but no branch is mapped.
+      setLoadingBranch(false);
+    }
   }, [isAdmin, user]);
 
   const fetchBranches = useCallback(async (query) => {
     const res = await branchesApi.list({ q: query, status: 'ACTIVE', size: 20 });
     return res.content || [];
   }, []);
+
+  // Pincode autocomplete — calls the Bijlipay search endpoint via our proxy.
+  const fetchPincodes = useCallback(
+    (q) => bijlipayApi.searchPincodes(q || '').catch(() => []),
+    []
+  );
+
+  // When user picks a pincode (or types 6 digits), fetch state/city/region
+  // from the BP region API and auto-fill the form.
+  const onPickPincode = async (val, item) => {
+    const raw = item?.pincode || (typeof val === 'string' ? val : '');
+    const onlyDigits = raw.replace(/\D/g, '').slice(0, 6);
+    update('pincode', onlyDigits);
+    if (onlyDigits.length === 6) {
+      try {
+        const details = await bijlipayApi.fetchPincodeDetails(onlyDigits);
+        if (details) {
+          setForm((f) => ({
+            ...f,
+            state: details.state || f.state,
+            city: details.city || f.city,
+            region: details.region || f.region,
+          }));
+        }
+      } catch {
+        // Silent — user can still type state/city manually.
+      }
+    }
+  };
 
   const onPickBranch = (val, item) => {
     if (item && typeof item === 'object') {
@@ -83,6 +116,9 @@ export default function LeadSingleForm() {
     if (!/^\d{6}$/.test(form.pincode.trim())) return 'Pincode must be 6 digits';
     if (!form.state.trim()) return 'State is required';
     if (!form.city.trim()) return 'City is required';
+    if (form.bankempPhn.trim() && !/^\d{10}$/.test(form.bankempPhn.trim())) {
+      return 'Bank Employee Phone must be 10 digits (or leave blank)';
+    }
     if (!Number(form.deviceCount) || Number(form.deviceCount) < 1) return 'Device Count must be at least 1';
     return null;
   };
@@ -108,7 +144,7 @@ export default function LeadSingleForm() {
       device_type: device.model,
       branch_code: branch.soleId,
       deviceCount: Number(form.deviceCount) || 1,
-      bankemp_phn: user?.mobile || '',
+      bankemp_phn: form.bankempPhn.trim(),
     };
   };
 
@@ -123,7 +159,8 @@ export default function LeadSingleForm() {
       const res = await bijlipayApi.submitLead(buildPayload());
       const leadId = res?.leadId || res?.lead_id || res?.id || res?.data?.leadId || '';
       setSubmitOk(`Lead submitted successfully${leadId ? ` (Lead ID: ${leadId})` : ''}.`);
-      setForm(EMPTY_MERCHANT);
+      // Reset form but preserve the Bank Employee Phone default.
+      setForm({ ...EMPTY_MERCHANT, bankempPhn: user?.mobile || '' });
     } catch (e) {
       setSubmitErr(
         e.response?.data?.message ||
@@ -188,8 +225,12 @@ export default function LeadSingleForm() {
               className="w-full px-3 py-2 border rounded bg-gray-100 text-gray-700" />
           </Field>
           <Field label="Bank Employee Phone">
-            <input value={user?.mobile || '—'} disabled
-              className="w-full px-3 py-2 border rounded bg-gray-100 text-gray-700" />
+            <input
+              value={form.bankempPhn}
+              onChange={(e) => update('bankempPhn', e.target.value.replace(/\D/g, '').slice(0, 10))}
+              inputMode="numeric" maxLength={10}
+              placeholder="Optional · 10-digit mobile"
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple" />
           </Field>
         </div>
         {!isAdmin && !loadingBranch && !branch && (
@@ -235,28 +276,33 @@ export default function LeadSingleForm() {
               className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple" />
           </Field>
           <Field label="Merchant Pincode *">
-            <input value={form.pincode}
-              onChange={(e) => update('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
-              inputMode="numeric" maxLength={6} placeholder="6-digit pincode"
-              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple" />
+            <Autocomplete
+              value={form.pincode}
+              onChange={onPickPincode}
+              fetchOptions={fetchPincodes}
+              minChars={3}
+              getLabel={(p) => (typeof p === 'string' ? p : p?.pincode || '')}
+              getSecondary={(p) => (typeof p === 'object' ? p?.region || p?.area || p?.city || '' : '')}
+              placeholder="Type 3+ digits…"
+            />
           </Field>
           <Field label="State *">
             <input value={form.state}
               onChange={(e) => update('state', e.target.value)} maxLength={100}
               className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple"
-              placeholder="e.g. Tamil Nadu" />
+              placeholder="Auto-filled from pincode" />
           </Field>
           <Field label="City *">
             <input value={form.city}
               onChange={(e) => update('city', e.target.value)} maxLength={100}
               className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple"
-              placeholder="e.g. Chennai" />
+              placeholder="Auto-filled from pincode" />
           </Field>
           <Field label="Region">
             <input value={form.region}
               onChange={(e) => update('region', e.target.value)} maxLength={50}
               className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple"
-              placeholder="Optional, e.g. South-1" />
+              placeholder="Auto-filled from pincode" />
           </Field>
           <Field label="Merchant Address *">
             <textarea value={form.address}
@@ -303,7 +349,10 @@ export default function LeadSingleForm() {
 
       <div className="flex justify-end gap-2">
         <button type="button"
-          onClick={() => { setForm(EMPTY_MERCHANT); setSubmitErr(''); setSubmitOk(''); }}
+          onClick={() => {
+            setForm({ ...EMPTY_MERCHANT, bankempPhn: user?.mobile || '' });
+            setSubmitErr(''); setSubmitOk('');
+          }}
           disabled={busy}
           className="px-4 py-2 text-sm border rounded hover:bg-gray-100 disabled:opacity-60">
           Reset

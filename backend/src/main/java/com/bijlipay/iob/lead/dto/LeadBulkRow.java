@@ -13,8 +13,6 @@ public record LeadBulkRow(
         String email,
         String address,
         String pincode,
-        String state,
-        String city,
         String deviceLabel,
         String deviceModel,
         int deviceCount,

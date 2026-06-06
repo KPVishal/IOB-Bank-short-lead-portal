@@ -10,6 +10,7 @@ export default function LeadBulkUpload() {
   const [branch, setBranch] = useState(null);
   const [soleIdInput, setSoleIdInput] = useState('');
   const [loadingBranch, setLoadingBranch] = useState(false);
+  const [bankempPhn, setBankempPhn] = useState('');
   const [file, setFile] = useState(null);
   const [drag, setDrag] = useState(false);
   const [parseBusy, setParseBusy] = useState(false);
@@ -20,24 +21,24 @@ export default function LeadBulkUpload() {
   const [results, setResults] = useState(null);
   const inputRef = useRef(null);
 
-  // Branch User: auto-load own branch
+  // Default Bank Employee Phone to the logged-in user's mobile.
+  // Editable; applies to every row in this upload.
+  useEffect(() => {
+    if (user?.mobile) setBankempPhn((v) => v || user.mobile);
+  }, [user?.mobile]);
+
+  // Branch User: read branch from user.branch (embedded in /api/auth/me).
+  // /api/branches is admin-only, so we can't call it from a branch user
+  // session — this avoids the silent 403 we were hitting before.
   useEffect(() => {
     if (isAdmin) return;
-    if (!user?.soleId) return;
-    setLoadingBranch(true);
-    branchesApi
-      .list({ q: user.soleId, size: 5 })
-      .then((res) => {
-        const match = (res.content || []).find(
-          (b) => b.soleId?.toLowerCase() === user.soleId.toLowerCase()
-        );
-        if (match) {
-          setBranch(match);
-          setSoleIdInput(match.soleId);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoadingBranch(false));
+    if (user?.branch) {
+      setBranch(user.branch);
+      setSoleIdInput(user.branch.soleId);
+      setLoadingBranch(false);
+    } else if (user) {
+      setLoadingBranch(false);
+    }
   }, [isAdmin, user]);
 
   const fetchBranches = useCallback(async (query) => {
@@ -103,10 +104,10 @@ export default function LeadBulkUpload() {
     }
   };
 
-  const buildPayloadForRow = (row) => ({
+  const buildPayloadForRow = (row, regionDetails) => ({
     merchant_name: row.merchantName,
     contact_name: row.contactName,
-    region: '',
+    region: regionDetails?.region || '',
     bank_region: branch.bankRegion || '',
     bank_city: branch.city || '',
     bank_pincode: Number(branch.pincode),
@@ -116,13 +117,13 @@ export default function LeadBulkUpload() {
     email_id: row.email,
     merchant_address: row.address,
     pincode: Number(row.pincode),
-    state: row.state || '',
-    city: row.city || '',
+    state: regionDetails?.state || '',
+    city: regionDetails?.city || '',
     bank: LEAD_SOURCE_IOB,
     device_type: row.deviceModel,
     branch_code: branch.soleId,
     deviceCount: row.deviceCount || 1,
-    bankemp_phn: user?.mobile || '',
+    bankemp_phn: bankempPhn.trim(),
   });
 
   const onSubmitAll = async () => {
@@ -137,7 +138,15 @@ export default function LeadBulkUpload() {
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
       try {
-        const payload = buildPayloadForRow(row);
+        // Pincode → region details auto-fetch per row.
+        let details = null;
+        try {
+          details = await bijlipayApi.fetchPincodeDetails(row.pincode);
+        } catch {
+          // If the pincode lookup fails, submit with empty state/city/region.
+          // Bijlipay decides whether to accept or reject.
+        }
+        const payload = buildPayloadForRow(row, details);
         const resp = await bijlipayApi.submitLead(payload);
         succeeded.push({ row, response: resp });
       } catch (e) {
@@ -198,6 +207,19 @@ export default function LeadBulkUpload() {
             </div>
           )}
         </div>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2">
+            <Field label="Bank Employee Phone (applies to all rows)">
+              <input
+                value={bankempPhn}
+                onChange={(e) => setBankempPhn(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                inputMode="numeric" maxLength={10}
+                placeholder="Optional · 10-digit mobile"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-bp-purple"
+              />
+            </Field>
+          </div>
+        </div>
       </Section>
 
       {/* Step 2: Template + upload */}
@@ -207,7 +229,9 @@ export default function LeadBulkUpload() {
             <div className="font-semibold mb-1 text-bp-purple">Template columns</div>
             <div className="text-xs">
               Merchant Name, Contact Name, Contact Number, Alternate Number, Email, Merchant Address,
-              Pincode, State, City, Device Type (Android POS / All-in-One POS), Device Count.
+              Pincode, Device Type (Android POS / All-in-One POS), Device Count.
+              <br />
+              <span className="text-gray-500">State, City &amp; Region are auto-filled from the pincode during submission.</span>
             </div>
           </div>
           <button

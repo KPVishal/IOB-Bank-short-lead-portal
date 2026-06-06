@@ -60,6 +60,33 @@ export const bijlipayApi = {
     client
       .get('/api/bijlipay/lead-device-details-admin', { params: { leadSource, page, size } })
       .then((r) => r.data),
+
+  // ── Transactions (Admin) ──
+  // Backend forwards as a POST with both query params and a JSON body.
+  listTransactions: ({
+    id = 4,
+    page = 0,
+    size = 10,
+    sort = 'response_received_time,DESC',
+    fromDate = '',
+    toDate = '',
+    txnStatus = null,
+    txnType = [],
+    dateRange = 0,
+  } = {}) =>
+    client
+      .post(
+        `/api/bijlipay/get-pos-transaction-pageable/${id}`,
+        { txnStatus, txnType, dateRange },
+        { params: { sort, page, size, fromDate, toDate } }
+      )
+      .then((r) => r.data),
+
+  // ── Settled Transactions / Settlement MIS (Admin) ──
+  listSettlements: ({ bankName = 'IOB', page = 0, size = 10 } = {}) =>
+    client
+      .get('/api/bijlipay/getSettlementMIS', { params: { bankName, page, size } })
+      .then((r) => r.data),
 };
 
 function normalizePincodeList(data) {
@@ -100,7 +127,12 @@ export const MARS_STATUS_LABELS = {
   14: 'Pre-Cancelled',
 };
 
-export const ACTIVE_STATUS_CODES = new Set([1, 4, 5, 6, 7, 8, 13, 14]);
+// Merchant Details classification per the IOB spec:
+//   Active   = {5, 6, 7, 8}
+//   Inactive = {2, 3}
+// Any lead with a code outside both sets (1, 4, 13, 14) is HIDDEN from the
+// Merchant Details page entirely.
+export const ACTIVE_STATUS_CODES = new Set([5, 6, 7, 8]);
 export const INACTIVE_STATUS_CODES = new Set([2, 3]);
 
 export function statusLabel(code) {

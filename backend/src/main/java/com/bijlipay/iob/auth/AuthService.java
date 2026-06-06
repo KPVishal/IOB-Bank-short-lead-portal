@@ -4,6 +4,8 @@ import com.bijlipay.iob.auth.dto.ChangePasswordRequest;
 import com.bijlipay.iob.auth.dto.LoginRequest;
 import com.bijlipay.iob.auth.dto.LoginResponse;
 import com.bijlipay.iob.auth.dto.MeResponse;
+import com.bijlipay.iob.branch.BranchRepository;
+import com.bijlipay.iob.branch.dto.BranchResponse;
 import com.bijlipay.iob.common.exception.ApiException;
 import com.bijlipay.iob.user.User;
 import com.bijlipay.iob.user.UserRepository;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final BranchRepository branchRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
@@ -45,7 +48,7 @@ public class AuthService {
         // OTP step intentionally removed — both ADMIN and BRANCH_MANAGER receive an
         // ACCESS token directly after credentials are validated.
         String token = jwtService.generateAccessToken(user.getEmail(), user.getRole().name());
-        return LoginResponse.done(token, jwtService.getAccessTokenExpirySeconds(), MeResponse.from(user));
+        return LoginResponse.done(token, jwtService.getAccessTokenExpirySeconds(), buildMe(user));
     }
 
     @Transactional
@@ -81,12 +84,28 @@ public class AuthService {
 
         // OTP step intentionally removed — issue ACCESS token straight after password change.
         String token = jwtService.generateAccessToken(user.getEmail(), user.getRole().name());
-        return LoginResponse.done(token, jwtService.getAccessTokenExpirySeconds(), MeResponse.from(user));
+        return LoginResponse.done(token, jwtService.getAccessTokenExpirySeconds(), buildMe(user));
     }
 
     public MeResponse me(String email) {
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "User not found"));
-        return MeResponse.from(user);
+        return buildMe(user);
+    }
+
+    /**
+     * Build a {@link MeResponse} that includes the user's mapped Branch (if
+     * one exists for their Sole ID). Returned as null otherwise — e.g. an
+     * admin without a Sole ID, or a branch user whose Sole ID hasn't yet
+     * had a Branch row created by an admin.
+     */
+    private MeResponse buildMe(User user) {
+        BranchResponse branch = null;
+        if (user.getSoleId() != null && !user.getSoleId().isBlank()) {
+            branch = branchRepository.findBySoleIdIgnoreCase(user.getSoleId())
+                    .map(BranchResponse::from)
+                    .orElse(null);
+        }
+        return MeResponse.from(user, branch);
     }
 }

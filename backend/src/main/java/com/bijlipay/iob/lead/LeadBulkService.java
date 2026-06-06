@@ -29,7 +29,7 @@ public class LeadBulkService {
 
     public static final String[] HEADERS = {
             "Merchant Name", "Contact Name", "Contact Number", "Alternate Number",
-            "Email", "Merchant Address", "Pincode", "State", "City",
+            "Email", "Merchant Address", "Pincode",
             "Device Type", "Device Count"
     };
 
@@ -69,16 +69,14 @@ public class LeadBulkService {
             sample.createCell(4).setCellValue("contact@srisai.com");
             sample.createCell(5).setCellValue("12 Main Road, T. Nagar, Chennai");
             sample.createCell(6).setCellValue("600017");
-            sample.createCell(7).setCellValue("Tamil Nadu");
-            sample.createCell(8).setCellValue("Chennai");
-            sample.createCell(9).setCellValue("Android POS");
-            sample.createCell(10).setCellValue(1);
+            sample.createCell(7).setCellValue("Android POS");
+            sample.createCell(8).setCellValue(1);
 
-            // Device Type dropdown on column J (index 9), rows 2..1000
+            // Device Type dropdown on column H (index 7), rows 2..1000
             XSSFDataValidationHelper helper = new XSSFDataValidationHelper(sheet);
             XSSFDataValidationConstraint constraint = (XSSFDataValidationConstraint)
                     helper.createExplicitListConstraint(new String[]{"Android POS", "All-in-One POS"});
-            CellRangeAddressList range = new CellRangeAddressList(1, 1000, 9, 9);
+            CellRangeAddressList range = new CellRangeAddressList(1, 1000, 7, 7);
             XSSFDataValidation validation = (XSSFDataValidation) helper.createValidation(constraint, range);
             validation.setShowErrorBox(true);
             sheet.addValidationData(validation);
@@ -87,7 +85,7 @@ public class LeadBulkService {
             String[] notes = {
                     "Bank Lead Entry — Bulk Upload template",
                     "",
-                    "Required: Merchant Name, Contact Name, Contact Number, Email, Merchant Address, Pincode, State, City, Device Type",
+                    "Required: Merchant Name, Contact Name, Contact Number, Email, Merchant Address, Pincode, Device Type",
                     "Optional: Alternate Number, Device Count (default 1)",
                     "",
                     "Contact Number and Alternate Number must be exactly 10 digits.",
@@ -98,8 +96,7 @@ public class LeadBulkService {
                     "",
                     "Sole ID is taken from the upload screen (your branch as a Branch User, or the picker if Admin).",
                     "Bank information (Bank City, Bank Pincode, Bank Region) auto-fills from the branch table.",
-                    "State and City are the merchant's location — enter them per row.",
-                    "(Region is sent empty for now; once the Bijlipay pincode API is reachable, it will auto-fill.)",
+                    "State, City and Region auto-fill from the Bijlipay pincode API at submission time.",
                     "",
                     "First row is the header. Data starts from row 2.",
                     "Rows are submitted one at a time to the Bijlipay lead API. Failures don't stop the run."
@@ -185,8 +182,6 @@ public class LeadBulkService {
         String email        = trim(data.get("Email"));
         String address      = trim(data.get("Merchant Address"));
         String pincode      = trim(data.get("Pincode"));
-        String state        = trim(data.get("State"));
-        String city         = trim(data.get("City"));
         String deviceLabel  = trim(data.get("Device Type"));
         String deviceCountS = trim(data.get("Device Count"));
 
@@ -196,8 +191,6 @@ public class LeadBulkService {
         if (email.isEmpty())        missing.add("Email");
         if (address.isEmpty())      missing.add("Merchant Address");
         if (pincode.isEmpty())      missing.add("Pincode");
-        if (state.isEmpty())        missing.add("State");
-        if (city.isEmpty())         missing.add("City");
         if (deviceLabel.isEmpty())  missing.add("Device Type");
         for (String f : missing) errors.add(f + " is required");
 
@@ -240,7 +233,7 @@ public class LeadBulkService {
         return new LeadBulkRow(
                 rowNumber, data,
                 merchantName, contactName, contactNumber, altNumber,
-                email, address, pincode, state, city,
+                email, address, pincode,
                 deviceLabel, deviceModel, deviceCount,
                 errors, missing,
                 errors.isEmpty()

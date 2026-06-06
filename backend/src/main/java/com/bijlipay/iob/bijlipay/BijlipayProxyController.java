@@ -18,6 +18,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -145,6 +146,49 @@ public class BijlipayProxyController {
         return forward(() -> bijlipayRestClient.get()
                 .uri(uri -> uri.path("/api/lead-device-details-admin")
                         .queryParam("leadSource", leadSource)
+                        .queryParam("page", page)
+                        .queryParam("size", size)
+                        .build())
+                .retrieve()
+                .toEntity(String.class));
+    }
+
+    // ── Transactions (Admin) ─────────────────────────────────────────────
+    // POST with query params AND a JSON body — the upstream API mixes both.
+    // The {idPath} segment in the URL identifies the bank/account (frontend
+    // currently sends "4" for IOB). We forward all query params verbatim and
+    // pass the body through as-is.
+
+    @PostMapping("/get-pos-transaction-pageable/{idPath}")
+    public ResponseEntity<String> getPosTransactionPageable(
+            @PathVariable("idPath") String idPath,
+            @RequestParam Map<String, String> allParams,
+            @RequestBody(required = false) String body
+    ) {
+        Map<String, String> params = new LinkedHashMap<>(allParams);
+        return forward(() -> bijlipayRestClient.post()
+                .uri(uri -> {
+                    var b = uri.path("/api/get-pos-transaction-pageable/" + idPath);
+                    params.forEach(b::queryParam);
+                    return b.build();
+                })
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body == null || body.isBlank() ? "{}" : body)
+                .retrieve()
+                .toEntity(String.class));
+    }
+
+    // ── Settled Transactions / Settlement MIS (Admin) ─────────────────────
+
+    @GetMapping("/getSettlementMIS")
+    public ResponseEntity<String> getSettlementMIS(
+            @RequestParam(value = "bankName", defaultValue = "IOB") String bankName,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size
+    ) {
+        return forward(() -> bijlipayRestClient.get()
+                .uri(uri -> uri.path("/api/getSettlementMIS")
+                        .queryParam("bankName", bankName)
                         .queryParam("page", page)
                         .queryParam("size", size)
                         .build())
