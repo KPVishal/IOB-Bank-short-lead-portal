@@ -6,8 +6,9 @@ import {
   bijlipayApi,
   ACTIVE_STATUS_CODES,
   INACTIVE_STATUS_CODES,
+  normalizeListing,
+  normalizeTerminalRow,
 } from '../api/bijlipay.js';
-import { normalizeListing } from './status/LeadStatusTab.jsx';
 
 export default function Dashboard() {
   const { user, isAdmin } = useAuth();
@@ -38,16 +39,17 @@ export default function Dashboard() {
             bijlipayApi.adminTerminalStatus({ page: 0, size: 100 }),
           ]);
           if (leads.status === 'fulfilled') {
-            const norm = normalizeListing(leads.value, 0);
+            const norm = normalizeListing(leads.value);
             out.totalLeads = norm.totalElements;
           } else {
             out.leadsError = leads.reason?.message || 'Could not reach Bijlipay';
           }
           if (terminals.status === 'fulfilled') {
-            const norm = normalizeListing(terminals.value, 0);
+            const norm = normalizeListing(terminals.value);
             out.totalTerminals = norm.totalElements;
             let active = 0, inactive = 0;
-            norm.items.forEach((r) => {
+            norm.items.forEach((raw) => {
+              const r = normalizeTerminalRow(raw);
               const c = Number(r.statusCode);
               if (ACTIVE_STATUS_CODES.has(c)) active++;
               else if (INACTIVE_STATUS_CODES.has(c)) inactive++;
@@ -68,16 +70,17 @@ export default function Dashboard() {
               bijlipayApi.branchTerminalStatus({ bankEmpPh: user.mobile, page: 0, size: 100 }),
             ]);
             if (leads.status === 'fulfilled') {
-              const norm = normalizeListing(leads.value, 0);
+              const norm = normalizeListing(leads.value);
               out.totalLeads = norm.totalElements;
             } else {
               out.leadsError = leads.reason?.message || 'Could not reach Bijlipay';
             }
             if (terminals.status === 'fulfilled') {
-              const norm = normalizeListing(terminals.value, 0);
+              const norm = normalizeListing(terminals.value);
               out.totalTerminals = norm.totalElements;
               let active = 0, inactive = 0;
-              norm.items.forEach((r) => {
+              norm.items.forEach((raw) => {
+                const r = normalizeTerminalRow(raw);
                 const c = Number(r.statusCode);
                 if (ACTIVE_STATUS_CODES.has(c)) active++;
                 else if (INACTIVE_STATUS_CODES.has(c)) inactive++;

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   bijlipayApi,
-  isActiveTerminal,
+  normalizeListing,
+  normalizeTerminalRow,
   ACTIVE_STATUS_CODES,
   INACTIVE_STATUS_CODES,
-  statusLabel,
+  isActiveTerminal,
+  terminalStatusLabel,
 } from '../../api/bijlipay.js';
-import { normalizeListing } from '../status/LeadStatusTab.jsx';
 
 const PAGE_SIZE = 20;
 
@@ -29,15 +30,15 @@ export default function MerchantsPage() {
     setLoading(true);
     setErr('');
     try {
-      // Per the corrected doc, Merchant Details uses the SAME endpoint as
-      // Admin Lead Status (lead-view-tracker-admin), then classifies rows by
-      // their MARS terminal status code into Active / Inactive.
-      const data = await bijlipayApi.adminLeadStatus({ page, size: PAGE_SIZE });
-      const { items, totalElements, totalPages } = normalizeListing(data, page);
-      // Per the IOB spec, only Active {5,6,7,8} and Inactive {2,3} leads
-      // show up here. Codes 1, 4, 13, 14 are excluded entirely.
+      // Per the IOB New doc, Merchant Details uses the TERMINAL endpoint
+      // (lead-device-details-admin) so we can classify rows by their MARS
+      // deviceStatus code into Active / Inactive.
+      const data = await bijlipayApi.adminTerminalStatus({ page, size: PAGE_SIZE });
+      const { items, totalElements, totalPages } = normalizeListing(data);
+      // Hide rows whose deviceStatus is outside {Active ∪ Inactive}.
+      // That excludes codes 1, 4, 9, 10, 11, 13, 14 entirely.
       const shown = items
-        .map(expandMerchantFields)
+        .map(normalizeTerminalRow)
         .filter((r) => {
           const c = Number(r.statusCode);
           return ACTIVE_STATUS_CODES.has(c) || INACTIVE_STATUS_CODES.has(c);
@@ -82,6 +83,7 @@ export default function MerchantsPage() {
         <h1 className="text-2xl font-bold text-bp-purple">Merchant Details</h1>
         <p className="text-sm text-gray-500">
           Onboarded merchants with TID/MID and terminal status, scoped to <b>LS_INDIAN OVERSEAS BANK</b>.
+          Active = device status 5/6/7/8; Inactive = 2/3. Other states are hidden.
         </p>
       </div>
 
@@ -142,35 +144,39 @@ export default function MerchantsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-[11px] uppercase tracking-action text-gray-600 border-b">
                   <tr>
-                    <th className="text-left px-4 py-3">TID</th>
-                    <th className="text-left px-4 py-3">MID</th>
-                    <th className="text-left px-4 py-3">Sole ID</th>
-                    <th className="text-left px-4 py-3">Merchant</th>
-                    <th className="text-left px-4 py-3">Contact</th>
-                    <th className="text-left px-4 py-3">Phone</th>
-                    <th className="text-left px-4 py-3">City</th>
-                    <th className="text-left px-4 py-3">Pincode</th>
-                    <th className="text-left px-4 py-3">Device</th>
-                    <th className="text-left px-4 py-3">Created</th>
-                    <th className="text-left px-4 py-3">Status</th>
-                    <th className="text-left px-4 py-3">Active?</th>
+                    <th className="text-left px-3 py-3">TID</th>
+                    <th className="text-left px-3 py-3">MID</th>
+                    <th className="text-left px-3 py-3">App No.</th>
+                    <th className="text-left px-3 py-3">Lead ID</th>
+                    <th className="text-left px-3 py-3">Merchant</th>
+                    <th className="text-left px-3 py-3">Contact</th>
+                    <th className="text-left px-3 py-3">Phone</th>
+                    <th className="text-left px-3 py-3">Bank Region</th>
+                    <th className="text-left px-3 py-3">Device</th>
+                    <th className="text-left px-3 py-3">City</th>
+                    <th className="text-left px-3 py-3">Pincode</th>
+                    <th className="text-left px-3 py-3">Created</th>
+                    <th className="text-left px-3 py-3">Status</th>
+                    <th className="text-left px-3 py-3">Active?</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((r, i) => (
-                    <tr key={r.tid || r.leadId || i} className="border-b last:border-0 hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-bp-purple">{r.tid || '—'}</td>
-                      <td className="px-4 py-3">{r.mid || '—'}</td>
-                      <td className="px-4 py-3">{r.branchCode || '—'}</td>
-                      <td className="px-4 py-3">{r.merchantName || '—'}</td>
-                      <td className="px-4 py-3">{r.contactName || '—'}</td>
-                      <td className="px-4 py-3">{r.contactNumber || '—'}</td>
-                      <td className="px-4 py-3">{r.city || '—'}</td>
-                      <td className="px-4 py-3">{r.pincode || '—'}</td>
-                      <td className="px-4 py-3">{r.deviceType || '—'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-600">{r.createdAt || '—'}</td>
-                      <td className="px-4 py-3 text-xs">{statusLabel(r.statusCode)}</td>
-                      <td className="px-4 py-3">
+                    <tr key={r.id || r.tid || i} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="px-3 py-2 font-semibold text-bp-purple">{r.tid || '—'}</td>
+                      <td className="px-3 py-2">{r.mid || '—'}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{r.applicationNumber || '—'}</td>
+                      <td className="px-3 py-2">{r.leadId || '—'}</td>
+                      <td className="px-3 py-2">{r.leadName || '—'}</td>
+                      <td className="px-3 py-2">{r.contactName || '—'}</td>
+                      <td className="px-3 py-2">{r.contactNumber || '—'}</td>
+                      <td className="px-3 py-2">{r.bankRegion || '—'}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{r.deviceName || '—'}</td>
+                      <td className="px-3 py-2">{r.terminalCity || r.leadCity || '—'}</td>
+                      <td className="px-3 py-2">{r.terminalPincode || r.leadPincode || '—'}</td>
+                      <td className="px-3 py-2 text-xs text-gray-600">{r.createdAt || '—'}</td>
+                      <td className="px-3 py-2 text-xs">{terminalStatusLabel(r.statusCode)}</td>
+                      <td className="px-3 py-2">
                         <ActivePill code={r.statusCode} />
                       </td>
                     </tr>
@@ -224,19 +230,4 @@ function Stat({ label, value, tone }) {
       <div className="text-2xl font-bold">{value}</div>
     </div>
   );
-}
-
-function expandMerchantFields(r) {
-  const raw = r.raw || {};
-  const get = (...keys) => {
-    for (const k of keys) {
-      if (raw[k] != null && raw[k] !== '') return raw[k];
-    }
-    return '';
-  };
-  return {
-    ...r,
-    tid: get('tid', 'TID', 'terminalId', 'terminal_id'),
-    mid: get('mid', 'MID', 'merchantId', 'merchant_id'),
-  };
 }

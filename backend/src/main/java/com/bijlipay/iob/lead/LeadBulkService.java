@@ -34,7 +34,7 @@ public class LeadBulkService {
     };
 
     private static final Map<String, String> DEVICE_MODELS = Map.of(
-            "android pos",     "A75PRO",
+            "android pos",     "A75 PRO",
             "all-in-one pos",  "Q161_PRO_SQR"
     );
 
@@ -91,7 +91,7 @@ public class LeadBulkService {
                     "Contact Number and Alternate Number must be exactly 10 digits.",
                     "Pincode must be exactly 6 digits.",
                     "Device Type must be 'Android POS' or 'All-in-One POS'.",
-                    "  • Android POS    → device_model A75PRO",
+                    "  • Android POS    → device_model A75 PRO",
                     "  • All-in-One POS → device_model Q161_PRO_SQR",
                     "",
                     "Sole ID is taken from the upload screen (your branch as a Branch User, or the picker if Admin).",

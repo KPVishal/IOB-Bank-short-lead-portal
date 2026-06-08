@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext.jsx';
-import { bijlipayApi, statusLabel } from '../../api/bijlipay.js';
-import { normalizeListing } from './LeadStatusTab.jsx';
+import {
+  bijlipayApi,
+  normalizeListing,
+  normalizeTerminalRow,
+  terminalStatusLabel,
+  terminalStatusTone,
+} from '../../api/bijlipay.js';
 
 const PAGE_SIZE = 10;
 
@@ -21,8 +26,8 @@ export default function TerminalStatusTab() {
       const data = isAdmin
         ? await bijlipayApi.adminTerminalStatus({ page, size: PAGE_SIZE })
         : await bijlipayApi.branchTerminalStatus({ bankEmpPh: user?.mobile, page, size: PAGE_SIZE });
-      const { items, totalElements, totalPages } = normalizeListing(data, page);
-      setRows(items);
+      const { items, totalElements, totalPages } = normalizeListing(data);
+      setRows(items.map(normalizeTerminalRow));
       setMeta({ total: totalElements, totalPages });
     } catch (e) {
       setErr(e.response?.data?.message || e.message || 'Could not load terminal status');
@@ -82,30 +87,40 @@ export default function TerminalStatusTab() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-[11px] uppercase tracking-action text-gray-600 border-b">
                   <tr>
-                    <th className="text-left px-4 py-3">Lead Ref</th>
-                    <th className="text-left px-4 py-3">Merchant</th>
-                    <th className="text-left px-4 py-3">Contact</th>
-                    <th className="text-left px-4 py-3">Phone</th>
-                    <th className="text-left px-4 py-3">Pincode</th>
-                    <th className="text-left px-4 py-3">Device</th>
-                    <th className="text-left px-4 py-3">Branch Code</th>
-                    <th className="text-left px-4 py-3">Created</th>
-                    <th className="text-left px-4 py-3">Terminal Status</th>
+                    <th className="text-left px-3 py-3">TID</th>
+                    <th className="text-left px-3 py-3">MID</th>
+                    <th className="text-left px-3 py-3">App No.</th>
+                    <th className="text-left px-3 py-3">Lead ID</th>
+                    <th className="text-left px-3 py-3">Lead Name</th>
+                    <th className="text-left px-3 py-3">Phone</th>
+                    <th className="text-left px-3 py-3">Bank Region</th>
+                    <th className="text-left px-3 py-3">Device</th>
+                    <th className="text-left px-3 py-3">City</th>
+                    <th className="text-left px-3 py-3">State</th>
+                    <th className="text-left px-3 py-3">Pincode</th>
+                    <th className="text-left px-3 py-3">Created</th>
+                    <th className="text-left px-3 py-3">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((r, i) => (
-                    <tr key={r.leadId || i} className="border-b last:border-0 hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-bp-purple">{r.leadId || '—'}</td>
-                      <td className="px-4 py-3">{r.merchantName || '—'}</td>
-                      <td className="px-4 py-3">{r.contactName || '—'}</td>
-                      <td className="px-4 py-3">{r.contactNumber || '—'}</td>
-                      <td className="px-4 py-3">{r.pincode || '—'}</td>
-                      <td className="px-4 py-3">{r.deviceType || '—'}</td>
-                      <td className="px-4 py-3">{r.branchCode || '—'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-600">{r.createdAt || '—'}</td>
-                      <td className="px-4 py-3">
-                        <StatusPill code={r.statusCode} label={statusLabel(r.statusCode) || '—'} />
+                    <tr key={r.id || r.tid || i} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="px-3 py-2 font-semibold text-bp-purple">{r.tid || '—'}</td>
+                      <td className="px-3 py-2">{r.mid || '—'}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{r.applicationNumber || '—'}</td>
+                      <td className="px-3 py-2">{r.leadId || '—'}</td>
+                      <td className="px-3 py-2">{r.leadName || '—'}</td>
+                      <td className="px-3 py-2">{r.contactNumber || '—'}</td>
+                      <td className="px-3 py-2">{r.bankRegion || '—'}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{r.deviceName || '—'}</td>
+                      <td className="px-3 py-2">{r.terminalCity || r.leadCity || '—'}</td>
+                      <td className="px-3 py-2">{r.terminalState || r.leadState || '—'}</td>
+                      <td className="px-3 py-2">{r.terminalPincode || r.leadPincode || '—'}</td>
+                      <td className="px-3 py-2 text-xs text-gray-600">{r.createdAt || '—'}</td>
+                      <td className="px-3 py-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${terminalStatusTone(r.statusCode)}`}>
+                          {terminalStatusLabel(r.statusCode)}
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -132,20 +147,5 @@ export default function TerminalStatusTab() {
         )}
       </div>
     </div>
-  );
-}
-
-function StatusPill({ code, label }) {
-  const c = Number(code);
-  const tone =
-    [2, 3].includes(c) ? 'bg-red-100 text-red-700' :
-    [13, 14].includes(c) ? 'bg-amber-100 text-amber-800' :
-    [6, 7].includes(c) ? 'bg-green-100 text-green-700' :
-    [8].includes(c) ? 'bg-orange-100 text-orange-700' :
-    'bg-blue-100 text-blue-700';
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${tone}`}>
-      {label}
-    </span>
   );
 }

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { bijlipayApi } from '../../api/bijlipay.js';
-import { normalizeListing } from '../status/LeadStatusTab.jsx';
+import { bijlipayApi, normalizeListing } from '../../api/bijlipay.js';
 
 const PAGE_SIZE = 10;
 
@@ -44,7 +43,7 @@ export default function TransactionsPage() {
         txnType: [],
         dateRange: 0,
       });
-      const { items, totalElements, totalPages } = normalizeListing(data, page);
+      const { items, totalElements, totalPages } = normalizeListing(data);
       setRows(items.map(expandTxn));
       setMeta({ total: totalElements, totalPages });
     } catch (e) {

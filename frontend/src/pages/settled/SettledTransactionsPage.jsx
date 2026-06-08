@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { bijlipayApi } from '../../api/bijlipay.js';
-import { normalizeListing } from '../status/LeadStatusTab.jsx';
+import { bijlipayApi, normalizeListing } from '../../api/bijlipay.js';
 
 const PAGE_SIZE = 10;
 
@@ -17,7 +16,7 @@ export default function SettledTransactionsPage() {
     setErr('');
     try {
       const data = await bijlipayApi.listSettlements({ page, size: PAGE_SIZE });
-      const { items, totalElements, totalPages } = normalizeListing(data, page);
+      const { items, totalElements, totalPages } = normalizeListing(data);
       setRows(items.map(expandSettlement));
       setMeta({ total: totalElements, totalPages });
     } catch (e) {

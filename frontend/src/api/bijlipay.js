@@ -3,28 +3,16 @@ import client from './client.js';
 // All Bijlipay (Skilworth Mars) calls now go through our Spring backend at
 // /api/bijlipay/*. Spring forwards each request to qaapp.bijlipay.co.in:8353
 // (configurable via BIJLIPAY_BASE_URL env var on the backend).
-//
-// Why proxy instead of calling Bijlipay direct from the browser?
-//   - Bijlipay QA is IP-whitelisted. With the proxy, only one IP — the AWS
-//     EC2 box's public IP — needs to be allow-listed. Every user laptop
-//     hitting the portal benefits automatically.
-//   - Same-origin requests skip CORS entirely (Bijlipay's CORS headers don't
-//     matter when we're not crossing origins).
-//   - The portal's JWT auth already covers /api/*, so anonymous callers
-//     can't proxy through us to abuse Bijlipay.
-//
-// To re-enable direct browser → Bijlipay calls (not recommended), point
-// `client` at qaapp directly and drop the /bijlipay/ path segment.
 
 export const LEAD_SOURCE_IOB = 'LS_INDIAN OVERSEAS BANK';
 
 export const DEVICE_OPTIONS = [
-  { label: 'Android POS', model: 'A75PRO' },
+  { label: 'Android POS', model: 'A75 PRO' },
   { label: 'All-in-One POS', model: 'Q161_PRO_SQR' },
 ];
 
 export const bijlipayApi = {
-  // ── Pincode lookup (kept for future use; currently disabled in the UI) ──
+  // ── Pincode lookup ──
   searchPincodes: (searchTerm) =>
     client
       .get('/api/bijlipay/fetchPinCodeList', { params: { searchTerm } })
@@ -89,8 +77,27 @@ export const bijlipayApi = {
       .then((r) => r.data),
 };
 
-function normalizePincodeList(data) {
-  const arr = Array.isArray(data) ? data : data?.data || data?.content || [];
+// ══════════════════════════════════════════════════════════════════════
+//                       Response normalisation
+// ══════════════════════════════════════════════════════════════════════
+// Every Bijlipay endpoint wraps its body in {status, message, data: ...}.
+// `data` can be:
+//   • a Spring Page object        → { content: [...], totalElements, totalPages, ... }
+//   • a plain array               → [ {...}, {...} ]   (e.g. pincode details)
+//   • a single record             → { ... }            (rare)
+// `unwrapEnvelope` returns the inner `data` payload regardless.
+
+function unwrapEnvelope(body) {
+  if (body && typeof body === 'object' && 'data' in body &&
+      ('status' in body || 'message' in body)) {
+    return body.data;
+  }
+  return body;
+}
+
+function normalizePincodeList(body) {
+  const inner = unwrapEnvelope(body);
+  const arr = Array.isArray(inner) ? inner : (Array.isArray(inner?.content) ? inner.content : []);
   return arr
     .map((item) => {
       if (typeof item === 'string' || typeof item === 'number') {
@@ -102,8 +109,10 @@ function normalizePincodeList(data) {
     .filter((p) => p.pincode);
 }
 
-function normalizePincodeDetails(data) {
-  const d = Array.isArray(data) ? data[0] : data?.data || data;
+function normalizePincodeDetails(body) {
+  let d = unwrapEnvelope(body);
+  // Bijlipay returns pincode details as an array; take the first match.
+  if (Array.isArray(d)) d = d[0];
   if (!d || typeof d !== 'object') return null;
   return {
     state: d.state ?? d.stateName ?? d.bp_state ?? '',
@@ -114,15 +123,166 @@ function normalizePincodeDetails(data) {
   };
 }
 
+/**
+ * Generic page-style listing normaliser. Unwraps Bijlipay's envelope and
+ * returns raw rows + page metadata. Each consumer decides how to map rows
+ * for its specific screen (see `normalizeLeadRow`, `normalizeTerminalRow`).
+ */
+export function normalizeListing(body) {
+  if (!body) return { items: [], totalElements: 0, totalPages: 1 };
+  const inner = unwrapEnvelope(body);
+
+  let list = [];
+  let totalElements = 0;
+  let totalPages = 1;
+
+  if (Array.isArray(inner)) {
+    list = inner;
+    totalElements = inner.length;
+    totalPages = 1;
+  } else if (Array.isArray(inner?.content)) {
+    list = inner.content;
+    totalElements = Number(inner.totalElements ?? list.length);
+    totalPages = Number(inner.totalPages ?? 1);
+  } else if (Array.isArray(inner?.items)) {
+    list = inner.items;
+    totalElements = Number(inner.total ?? list.length);
+    totalPages = Number(inner.totalPages ?? 1);
+  }
+  return { items: list, totalElements, totalPages };
+}
+
+/** Lead Status row (response from lead-view-tracker[-admin]). */
+export function normalizeLeadRow(r) {
+  if (!r || typeof r !== 'object') return {};
+  const get = (...keys) => {
+    for (const k of keys) {
+      if (r[k] != null && r[k] !== '') return r[k];
+    }
+    return '';
+  };
+  return {
+    id: r.id,
+    leadId: get('leadId', 'lead_id', 'leadNumber'),
+    leadName: get('leadName', 'lead_name', 'merchantName', 'merchant_name'),
+    contactNumber: get('contactNumber', 'contact_number', 'phone'),
+    email: get('email', 'email_id'),
+    address: get('address', 'lead_address', 'leadAddress'),
+    pincode: get('pincode', 'pin_code'),
+    city: get('city'),
+    state: get('state', 'state_name', 'stateName'),
+    bankRegion: get('bankRegion', 'bank_region'),
+    deviceCount: get('deviceCount', 'device_count'),
+    assignedToName: (r.assigned_to && r.assigned_to.name) || (r.assignedTo && r.assignedTo.name) || '',
+    createdAt: formatDate(get('createdAt', 'created_at', 'createdDate', 'created_date')),
+    statusCode: get('status', 'lead_status', 'leadStatus'),
+    raw: r,
+  };
+}
+
+/**
+ * Terminal Status row (response from lead-device-details[-admin]). Each
+ * row has lead info nested under `leadInformation` — we flatten the bits
+ * we need so the table render code stays simple.
+ */
+export function normalizeTerminalRow(r) {
+  if (!r || typeof r !== 'object') return {};
+  const li = r.leadInformation || {};
+  const get = (...keys) => {
+    for (const k of keys) {
+      if (r[k] != null && r[k] !== '') return r[k];
+    }
+    return '';
+  };
+  const getLi = (...keys) => {
+    for (const k of keys) {
+      if (li[k] != null && li[k] !== '') return li[k];
+    }
+    return '';
+  };
+  return {
+    id: r.id,
+    tid: get('tid', 'TID', 'terminalId', 'terminal_id'),
+    mid: get('mid', 'MID', 'merchantId', 'merchant_id'),
+    applicationNumber: get('applicationNumber', 'application_number'),
+    leadId: getLi('leadId', 'lead_id', 'leadNumber'),
+    leadName: getLi('leadName', 'lead_name', 'merchantName', 'merchant_name'),
+    contactName: getLi('contactName', 'contact_name'),
+    contactNumber: getLi('contactNumber', 'contact_number'),
+    email: getLi('email', 'email_id'),
+    bankRegion: getLi('bankRegion', 'bank_region'),
+    deviceName: (li.device && (li.device.deviceName || li.device.device_name)) || '',
+    deviceCount: getLi('deviceCount', 'device_count'),
+    // Lead pincode / city / state (where the merchant is)
+    leadPincode: getLi('pincode'),
+    leadCity: getLi('city'),
+    leadState: getLi('state', 'state_name', 'stateName'),
+    // Terminal install address (can differ from lead location)
+    terminalPincode: get('pincode'),
+    terminalCity: get('city'),
+    terminalState: get('state', 'state_name', 'stateName'),
+    terminalAddress: get('deviceAddress', 'device_address', 'address'),
+    createdAt: formatDate(get('createdAt', 'created_at')),
+    statusCode: get('deviceStatus', 'device_status'),
+    leadStatusCode: getLi('leadStatus', 'lead_status'),
+    raw: r,
+  };
+}
+
+function formatDate(v) {
+  if (!v) return '';
+  if (typeof v === 'string') return v.replace('T', ' ').slice(0, 19);
+  if (typeof v === 'number') {
+    const d = new Date(v);
+    return d.toISOString().replace('T', ' ').slice(0, 19);
+  }
+  return String(v);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//                         Status code labels
+// ══════════════════════════════════════════════════════════════════════
+// Two completely separate code spaces. Same numeric value can mean
+// different things — pick the right map per context:
+//   • Lead Status tab        → LEAD_STATUS_LABELS    (lead pipeline)
+//   • Terminal Status tab    → MARS_STATUS_LABELS    (device pipeline)
+//   • Merchant Details       → MARS_STATUS_LABELS    (filtered to {5,6,7,8} / {2,3})
+
+export const LEAD_STATUS_LABELS = {
+  0:   'Closed',
+  1:   'Short Lead',
+  2:   'WIP Lead',
+  3:   'RSM Pending',
+  4:   'RSM Rejected',
+  5:   'NH Pending',
+  6:   'NH Rejected',
+  7:   'Submitted to SAT',
+  8:   'Data Entry Pending',
+  9:   'Submitted to MARS',
+  10:  'MARS Rejected',
+  11:  'MARS Approved',
+  12:  'Implement Pending',
+  13:  'Implement Approved',
+  14:  'All Devices Implemented',
+  50:  'Short Lead from Bank',
+  101: 'MARS Referral Back',
+  102: 'MARS Referral Back — Data Entry Pending',
+  103: 'Base TID Pending',
+  104: 'MARS Sub TID Pending',
+};
+
 export const MARS_STATUS_LABELS = {
-  1: 'TID Generated',
-  2: 'Inactive',
-  3: 'Terminated',
-  4: 'SAT Assigned',
-  5: 'Scan Picked',
-  6: 'Implemented',
-  7: 'Implemented (SAT Pending)',
-  8: 'Verification Failed',
+  1:  'TID Generated',
+  2:  'Inactive',
+  3:  'Terminated',
+  4:  'SAT Assigned',
+  5:  'Scan Picked',
+  6:  'Implemented',
+  7:  'Implemented (SAT Pending)',
+  8:  'Verification Failed',
+  9:  'Installation Scheduled',
+  10: 'Terminal Deployed — Docs Pending',
+  11: 'Cancelled by SO',
   13: 'SAT Cancelled',
   14: 'Pre-Cancelled',
 };
@@ -130,14 +290,39 @@ export const MARS_STATUS_LABELS = {
 // Merchant Details classification per the IOB spec:
 //   Active   = {5, 6, 7, 8}
 //   Inactive = {2, 3}
-// Any lead with a code outside both sets (1, 4, 13, 14) is HIDDEN from the
-// Merchant Details page entirely.
-export const ACTIVE_STATUS_CODES = new Set([5, 6, 7, 8]);
+// Codes 1, 4, 9, 10, 11, 13, 14 are HIDDEN from Merchant Details entirely.
+export const ACTIVE_STATUS_CODES   = new Set([5, 6, 7, 8]);
 export const INACTIVE_STATUS_CODES = new Set([2, 3]);
 
-export function statusLabel(code) {
-  if (code == null) return '—';
+export function leadStatusLabel(code) {
+  if (code == null || code === '') return '—';
+  return LEAD_STATUS_LABELS[Number(code)] || `Status ${code}`;
+}
+
+export function terminalStatusLabel(code) {
+  if (code == null || code === '') return '—';
   return MARS_STATUS_LABELS[Number(code)] || `Status ${code}`;
+}
+
+// Backwards-compat alias — older code imported this as `statusLabel`.
+export const statusLabel = terminalStatusLabel;
+
+export function leadStatusTone(code) {
+  const c = Number(code);
+  if ([11, 13, 14].includes(c))                return 'bg-green-100 text-green-700';
+  if ([0, 4, 6, 10].includes(c))               return 'bg-red-100 text-red-700';
+  if ([101].includes(c))                       return 'bg-orange-100 text-orange-700';
+  if ([3, 5, 8, 12, 102, 103, 104].includes(c))return 'bg-amber-100 text-amber-800';
+  return 'bg-blue-100 text-blue-700'; // 1, 2, 7, 9, 50, others
+}
+
+export function terminalStatusTone(code) {
+  const c = Number(code);
+  if ([2, 3].includes(c))         return 'bg-red-100 text-red-700';
+  if ([11, 13, 14].includes(c))   return 'bg-amber-100 text-amber-800';
+  if ([6, 7].includes(c))         return 'bg-green-100 text-green-700';
+  if ([8].includes(c))            return 'bg-orange-100 text-orange-700';
+  return 'bg-blue-100 text-blue-700'; // 1, 4, 5, 9, 10
 }
 
 export function isActiveTerminal(code) {
