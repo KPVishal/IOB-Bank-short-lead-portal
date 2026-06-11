@@ -33,7 +33,15 @@ export default function Header() {
   return (
     <header className="h-16 bg-white border-b sticky top-0 z-20 flex items-center px-6 justify-between">
       <div className="flex items-center gap-3">
-        <span className="text-iob-blue font-bold text-lg">IOB</span>
+        <img
+          src="/iob-logo-header.png"
+          alt="IOB"
+          className="h-10 w-auto object-contain"
+          onError={(e) => {
+            // Fall back to text branding if the file isn't dropped yet.
+            e.currentTarget.outerHTML = '<span class="text-iob-blue font-bold text-lg">IOB</span>';
+          }}
+        />
         <span className="text-gray-300">|</span>
         <span className="text-bp-purple font-bold tracking-wide">bijlipay</span>
       </div>

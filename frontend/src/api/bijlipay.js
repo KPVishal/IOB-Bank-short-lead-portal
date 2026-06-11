@@ -28,25 +28,25 @@ export const bijlipayApi = {
     client.post('/api/bijlipay/directBank-short-lead/1', payload).then((r) => r.data),
 
   // ── Lead Status — pipeline view ──
-  branchLeadStatus: ({ bankEmpPh, leadSource = LEAD_SOURCE_IOB }) =>
+  branchLeadStatus: ({ bankEmpPh, leadSource = LEAD_SOURCE_IOB, searchTerm = '', page = 0, size = 10 } = {}) =>
     client
-      .get('/api/bijlipay/lead-view-tracker', { params: { bankEmpPh, leadSource } })
+      .get('/api/bijlipay/lead-view-tracker', { params: { bankEmpPh, leadSource, searchTerm, page, size } })
       .then((r) => r.data),
 
-  adminLeadStatus: ({ leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
+  adminLeadStatus: ({ leadSource = LEAD_SOURCE_IOB, searchTerm = '', page = 0, size = 10 } = {}) =>
     client
-      .get('/api/bijlipay/lead-view-tracker-admin', { params: { leadSource, page, size } })
+      .get('/api/bijlipay/lead-view-tracker-admin', { params: { leadSource, searchTerm, page, size } })
       .then((r) => r.data),
 
   // ── Terminal Status — device-level view ──
-  branchTerminalStatus: ({ bankEmpPh, leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
+  branchTerminalStatus: ({ bankEmpPh, leadSource = LEAD_SOURCE_IOB, searchTerm = '', page = 0, size = 10 } = {}) =>
     client
-      .get('/api/bijlipay/lead-device-details', { params: { leadSource, bankEmpPh, page, size } })
+      .get('/api/bijlipay/lead-device-details', { params: { leadSource, bankEmpPh, searchTerm, page, size } })
       .then((r) => r.data),
 
-  adminTerminalStatus: ({ leadSource = LEAD_SOURCE_IOB, page = 0, size = 10 }) =>
+  adminTerminalStatus: ({ leadSource = LEAD_SOURCE_IOB, searchTerm = '', page = 0, size = 10 } = {}) =>
     client
-      .get('/api/bijlipay/lead-device-details-admin', { params: { leadSource, page, size } })
+      .get('/api/bijlipay/lead-device-details-admin', { params: { leadSource, searchTerm, page, size } })
       .then((r) => r.data),
 
   // ── Transactions (Admin) ──
@@ -161,20 +161,33 @@ export function normalizeLeadRow(r) {
     }
     return '';
   };
+  const assigned = r.assigned_to || r.assignedTo || null;
   return {
     id: r.id,
     leadId: get('leadId', 'lead_id', 'leadNumber'),
     leadName: get('leadName', 'lead_name', 'merchantName', 'merchant_name'),
     contactNumber: get('contactNumber', 'contact_number', 'phone'),
     email: get('email', 'email_id'),
-    address: get('address', 'lead_address', 'leadAddress'),
+    address: get('address', 'lead_address', 'leadAddress', 'merchant_address'),
     pincode: get('pincode', 'pin_code'),
     city: get('city'),
     state: get('state', 'state_name', 'stateName'),
     bankRegion: get('bankRegion', 'bank_region'),
     deviceCount: get('deviceCount', 'device_count'),
-    assignedToName: (r.assigned_to && r.assigned_to.name) || (r.assignedTo && r.assignedTo.name) || '',
+    // device model — Bijlipay returns either a nested device.deviceName OR a
+    // flat deviceModel field (the latter is a future schema addition).
+    deviceModel:
+      (r.device && (r.device.deviceName || r.device.device_name)) ||
+      get('deviceModel', 'device_model') || '',
+    // Sole ID — currently always null/empty; Bijlipay will populate later.
+    soleId: get('sole_id', 'soleId', 'sold_id'),
+    assignedToName: assigned?.name || '',
+    assignedToEmail: assigned?.email || '',
+    assignedToContact: assigned?.contactNumber || assigned?.contact_number || '',
     createdAt: formatDate(get('createdAt', 'created_at', 'createdDate', 'created_date')),
+    updatedAt: formatDate(get('updatedAt', 'updated_at', 'updatedDate', 'updated_date')),
+    // Raw createdAt for client-side sorting (ISO string preserves chrono order).
+    createdAtRaw: get('createdAt', 'created_at', 'createdDate', 'created_date'),
     statusCode: get('status', 'lead_status', 'leadStatus'),
     raw: r,
   };
@@ -200,6 +213,9 @@ export function normalizeTerminalRow(r) {
     }
     return '';
   };
+  const liAssigned = li.assignedTo || li.assigned_to || null;
+  const statusCode = Number(get('deviceStatus', 'device_status'));
+  const updatedAt = get('updatedAt', 'updated_at');
   return {
     id: r.id,
     tid: get('tid', 'TID', 'terminalId', 'terminal_id'),
@@ -213,6 +229,15 @@ export function normalizeTerminalRow(r) {
     bankRegion: getLi('bankRegion', 'bank_region'),
     deviceName: (li.device && (li.device.deviceName || li.device.device_name)) || '',
     deviceCount: getLi('deviceCount', 'device_count'),
+    // Sole ID — Bijlipay placeholder; blank until populated.
+    soleId: getLi('soleId', 'sole_id', 'sold_id'),
+    // SO (assigned to) details from the nested leadInformation.
+    soName: liAssigned?.name || '',
+    soEmail: liAssigned?.email || '',
+    soMobile: liAssigned?.contactNumber || liAssigned?.contact_number || '',
+    // Lat / Long from the lead's geo coords.
+    latitude: getLi('latitude', 'lat'),
+    longitude: getLi('longitude', 'lng', 'lon'),
     // Lead pincode / city / state (where the merchant is)
     leadPincode: getLi('pincode'),
     leadCity: getLi('city'),
@@ -223,7 +248,12 @@ export function normalizeTerminalRow(r) {
     terminalState: get('state', 'state_name', 'stateName'),
     terminalAddress: get('deviceAddress', 'device_address', 'address'),
     createdAt: formatDate(get('createdAt', 'created_at')),
-    statusCode: get('deviceStatus', 'device_status'),
+    // Raw createdAt for client-side sorting.
+    createdAtRaw: get('createdAt', 'created_at'),
+    updatedAt: formatDate(updatedAt),
+    // Installed Date = updatedAt iff deviceStatus === 6 (Implemented), else blank.
+    installedAt: statusCode === 6 ? formatDate(updatedAt) : '',
+    statusCode,
     leadStatusCode: getLi('leadStatus', 'lead_status'),
     raw: r,
   };

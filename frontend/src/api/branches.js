@@ -22,4 +22,7 @@ export const branchesApi = {
       })
       .then((r) => r.data);
   },
+
+  updateStatus: (id, status) =>
+    client.patch(`/api/branches/${id}/status`, { status }).then((r) => r.data),
 };

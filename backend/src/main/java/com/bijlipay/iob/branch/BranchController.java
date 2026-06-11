@@ -61,4 +61,15 @@ public class BranchController {
     public BulkImportResponse bulkImport(@RequestParam("file") MultipartFile file) {
         return branchBulkService.bulkImport(file);
     }
+
+    /**
+     * Activate / deactivate a branch. Body: {"status": "ACTIVE"} or {"status": "INACTIVE"}.
+     * Admin only (class-level @PreAuthorize already gates this).
+     */
+    @PatchMapping("/{id}/status")
+    public BranchResponse updateStatus(@PathVariable Long id, @RequestBody StatusUpdateRequest body) {
+        return branchService.updateStatus(id, body.status());
+    }
+
+    public record StatusUpdateRequest(String status) {}
 }

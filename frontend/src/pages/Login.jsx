@@ -93,6 +93,14 @@ export default function Login() {
 
       <div className="flex-1 flex items-center justify-center p-8 bg-gray-50">
         <div className="w-full max-w-md">
+          <div className="flex justify-center mb-6">
+            <img
+              src="/iob-logo-login.png"
+              alt="Indian Overseas Bank"
+              className="h-20 w-auto object-contain"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </div>
           <h1 className="text-2xl font-bold text-bp-purple mb-1">{titleMap[step]}</h1>
           <p className="text-sm text-gray-500 mb-8">{subtitleMap[step]}</p>
 
@@ -153,18 +161,6 @@ export default function Login() {
             </form>
           )}
 
-          {step === 'CREDENTIALS' && (
-            <div className="mt-8 p-4 bg-bp-pink border border-bp-lavender rounded text-xs text-gray-700">
-              <div className="font-semibold mb-2 text-bp-purple uppercase tracking-action text-[11px]">Demo credentials</div>
-              <div className="space-y-1 leading-relaxed">
-                <div><b>Admin</b>: <code>rejin@bijlipay.co.in</code> / <code>Bijli@123</code></div>
-                <div><b>Branch Manager</b>: <code>ravi.kumar@iob.in</code> / <code>Branch@123</code></div>
-                <div><b>Branch Manager</b>: <code>branch.user@iob.in</code> / <code>Branch@123</code></div>
-                <div><b>Inactive</b> (blocked): <code>anitha.s@iob.in</code> / <code>Branch@123</code></div>
-                <div className="text-gray-500 mt-2 italic">New users created via Admin → User Management get <code>Welcome@123</code> as default and must change it on first login.</div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

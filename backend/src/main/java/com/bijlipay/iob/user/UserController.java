@@ -55,4 +55,15 @@ public class UserController {
     public UserBulkImportResponse bulkImport(@RequestParam("file") MultipartFile file) {
         return userBulkService.bulkImport(file);
     }
+
+    /**
+     * Activate / deactivate a user. Body: {"status": "ACTIVE"} or {"status": "INACTIVE"}.
+     * Admin only (class-level @PreAuthorize already gates this).
+     */
+    @PatchMapping("/{id}/status")
+    public UserResponse updateStatus(@PathVariable Long id, @RequestBody StatusUpdateRequest body) {
+        return userService.updateStatus(id, body.status());
+    }
+
+    public record StatusUpdateRequest(String status) {}
 }

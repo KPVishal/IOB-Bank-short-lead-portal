@@ -8,8 +8,10 @@ import {
   isActiveTerminal,
   terminalStatusLabel,
 } from '../../api/bijlipay.js';
+import SearchBar from '../../components/SearchBar.jsx';
 
 const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 350;
 
 const FILTERS = [
   { id: 'all',      label: 'All' },
@@ -24,7 +26,16 @@ export default function MerchantsPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [filter, setFilter] = useState('all');
-  const [q, setQ] = useState('');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(0);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -33,7 +44,7 @@ export default function MerchantsPage() {
       // Per the IOB New doc, Merchant Details uses the TERMINAL endpoint
       // (lead-device-details-admin) so we can classify rows by their MARS
       // deviceStatus code into Active / Inactive.
-      const data = await bijlipayApi.adminTerminalStatus({ page, size: PAGE_SIZE });
+      const data = await bijlipayApi.adminTerminalStatus({ page, size: PAGE_SIZE, searchTerm: debouncedSearch });
       const { items, totalElements, totalPages } = normalizeListing(data);
       // Hide rows whose deviceStatus is outside {Active ∪ Inactive}.
       // That excludes codes 1, 4, 9, 10, 11, 13, 14 entirely.
@@ -43,6 +54,7 @@ export default function MerchantsPage() {
           const c = Number(r.statusCode);
           return ACTIVE_STATUS_CODES.has(c) || INACTIVE_STATUS_CODES.has(c);
         });
+      shown.sort((a, b) => (b.createdAtRaw || '').localeCompare(a.createdAtRaw || ''));
       setRows(shown);
       setMeta({ total: totalElements, totalPages });
     } catch (e) {
@@ -52,7 +64,7 @@ export default function MerchantsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, debouncedSearch]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -70,21 +82,13 @@ export default function MerchantsPage() {
     let list = rows;
     if (filter === 'active') list = list.filter((r) => isActiveTerminal(r.statusCode));
     else if (filter === 'inactive') list = list.filter((r) => INACTIVE_STATUS_CODES.has(Number(r.statusCode)));
-    if (q.trim()) {
-      const needle = q.trim().toLowerCase();
-      list = list.filter((r) => JSON.stringify(r).toLowerCase().includes(needle));
-    }
     return list;
-  }, [rows, filter, q]);
+  }, [rows, filter]);
 
   return (
     <div>
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-bp-purple">Merchant Details</h1>
-        <p className="text-sm text-gray-500">
-          Onboarded merchants with TID/MID and terminal status, scoped to <b>LS_INDIAN OVERSEAS BANK</b>.
-          Active = device status 5/6/7/8; Inactive = 2/3. Other states are hidden.
-        </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
@@ -110,12 +114,7 @@ export default function MerchantsPage() {
           ))}
         </div>
         <div className="flex gap-2 items-center">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Filter on page…"
-            className="px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-bp-purple"
-          />
+          <SearchBar value={search} onChange={setSearch} />
           <button
             onClick={reload}
             className="px-3 py-2 text-xs font-semibold uppercase tracking-action border-2 border-bp-purple text-bp-purple rounded hover:bg-bp-lavender"

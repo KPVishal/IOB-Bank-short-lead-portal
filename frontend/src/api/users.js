@@ -19,4 +19,7 @@ export const usersApi = {
       })
       .then((r) => r.data);
   },
+
+  updateStatus: (id, status) =>
+    client.patch(`/api/users/${id}/status`, { status }).then((r) => r.data),
 };

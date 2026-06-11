@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { branchesApi } from '../../api/branches.js';
 import { referenceApi } from '../../api/reference.js';
 import Autocomplete from '../../components/Autocomplete.jsx';
+import ConfirmModal from '../../components/ConfirmModal.jsx';
 import CreateBranchModal from './CreateBranchModal.jsx';
 import BulkUploadModal from './BulkUploadModal.jsx';
 
@@ -21,6 +22,24 @@ export default function BranchesPage() {
   const [states, setStates] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [pendingToggle, setPendingToggle] = useState(null);
+  const [toggleBusy, setToggleBusy] = useState(false);
+  const [toggleErr, setToggleErr] = useState('');
+
+  const confirmToggle = async () => {
+    if (!pendingToggle) return;
+    setToggleBusy(true);
+    setToggleErr('');
+    try {
+      await branchesApi.updateStatus(pendingToggle.id, pendingToggle.toStatus);
+      setPendingToggle(null);
+      reload();
+    } catch (e) {
+      setToggleErr(e.response?.data?.message || 'Could not update status');
+    } finally {
+      setToggleBusy(false);
+    }
+  };
 
   useEffect(() => {
     referenceApi.states().then(setStates).catch(() => {});
@@ -188,6 +207,7 @@ export default function BranchesPage() {
                     <th className="text-left px-4 py-3">Pincode</th>
                     <th className="text-left px-4 py-3">Bank Region</th>
                     <th className="text-left px-4 py-3">Status</th>
+                    <th className="text-left px-4 py-3">Active?</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -205,6 +225,29 @@ export default function BranchesPage() {
                         }`}>
                           {b.status === 'ACTIVE' ? 'Active' : 'Inactive'}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={b.status === 'ACTIVE'}
+                          onClick={() => setPendingToggle({
+                            id: b.id,
+                            branchName: `${b.soleId} — ${b.branchName}`,
+                            fromStatus: b.status,
+                            toStatus: b.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
+                          })}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                            b.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-300'
+                          }`}
+                          title={b.status === 'ACTIVE' ? 'Deactivate this branch' : 'Activate this branch'}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              b.status === 'ACTIVE' ? 'translate-x-4' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -243,6 +286,33 @@ export default function BranchesPage() {
         open={showBulk}
         onClose={() => setShowBulk(false)}
         onImported={() => { setPage(0); reload(); }}
+      />
+
+      <ConfirmModal
+        open={!!pendingToggle}
+        title={pendingToggle?.toStatus === 'INACTIVE' ? 'Deactivate branch?' : 'Activate branch?'}
+        message={
+          pendingToggle && (
+            <>
+              <p>
+                Are you sure you want to{' '}
+                <b>{pendingToggle.toStatus === 'INACTIVE' ? 'deactivate' : 'activate'}</b>{' '}
+                <b>{pendingToggle.branchName}</b>?
+              </p>
+              {pendingToggle.toStatus === 'INACTIVE' && (
+                <p className="mt-2 text-xs text-amber-700">
+                  Deactivated branches can't be assigned to new users. You can re-activate anytime.
+                </p>
+              )}
+              {toggleErr && <p className="mt-2 text-xs text-red-700">{toggleErr}</p>}
+            </>
+          )
+        }
+        confirmLabel={pendingToggle?.toStatus === 'INACTIVE' ? 'Deactivate' : 'Activate'}
+        tone={pendingToggle?.toStatus === 'INACTIVE' ? 'danger' : 'primary'}
+        busy={toggleBusy}
+        onClose={() => { if (!toggleBusy) { setPendingToggle(null); setToggleErr(''); } }}
+        onConfirm={confirmToggle}
       />
     </div>
   );

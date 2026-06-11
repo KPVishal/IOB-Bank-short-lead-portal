@@ -66,4 +66,25 @@ public class BranchService {
                 .map(BranchResponse::from)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Branch not found"));
     }
+
+    /**
+     * Flip a branch's status (ACTIVE ⇄ INACTIVE). Used by the toggle in
+     * Branch Management.
+     */
+    @Transactional
+    public BranchResponse updateStatus(Long id, String status) {
+        if (status == null || status.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Status is required");
+        }
+        BranchStatus next;
+        try {
+            next = BranchStatus.valueOf(status.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Status must be ACTIVE or INACTIVE");
+        }
+        Branch branch = branchRepository.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Branch not found"));
+        branch.setStatus(next);
+        return BranchResponse.from(branchRepository.save(branch));
+    }
 }

@@ -14,7 +14,7 @@ export default function LeadEntryPage() {
     <div>
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-bp-purple">Bank Lead Entry</h1>
-        <p className="text-sm text-gray-500">Capture merchant leads and submit them to the Bijlipay onboarding pipeline.</p>
+        <p className="text-sm text-gray-500">Capture merchant leads and submit them to the Bijlipay onboarding System.</p>
       </div>
 
       <div className="border-b border-gray-200 mb-4">

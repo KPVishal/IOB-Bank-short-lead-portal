@@ -118,6 +118,33 @@ public class UserService {
                 .collect(Collectors.toUnmodifiableMap(b -> b.getSoleId().toLowerCase(Locale.ROOT), Function.identity(), (a, b) -> a));
     }
 
+    /**
+     * Flip a user's status (ACTIVE ⇄ INACTIVE). Used by the toggle in
+     * User Management. We bail out with 400 if the requested value isn't
+     * one of the two enum names. The Map lookup re-uses {@link #lookupBranches}
+     * so the response carries the branch enrichment.
+     */
+    @Transactional
+    public UserResponse updateStatus(Long id, String status) {
+        if (status == null || status.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Status is required");
+        }
+        UserStatus next;
+        try {
+            next = UserStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Status must be ACTIVE or INACTIVE");
+        }
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+        user.setStatus(next);
+        User saved = userRepository.save(user);
+        Map<String, Branch> branchBySole = lookupBranches(
+                saved.getSoleId() == null ? List.of() : List.of(saved.getSoleId()));
+        return enrich(saved, branchBySole);
+    }
+
     public UserResponse enrich(User u, Map<String, Branch> branchBySole) {
         Branch b = u.getSoleId() == null ? null : branchBySole.get(u.getSoleId().toLowerCase(Locale.ROOT));
         if (b != null) {

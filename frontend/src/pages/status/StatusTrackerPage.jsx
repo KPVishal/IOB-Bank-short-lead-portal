@@ -15,7 +15,7 @@ export default function StatusTrackerPage() {
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-bp-purple">Status Tracker</h1>
         <p className="text-sm text-gray-500">
-          Track lead progress and terminal-device status. Data is pulled live from the Bijlipay pipeline.
+          Track lead progress and terminal-device status. Data is pulled live from the Bijlipay System.
         </p>
       </div>
 

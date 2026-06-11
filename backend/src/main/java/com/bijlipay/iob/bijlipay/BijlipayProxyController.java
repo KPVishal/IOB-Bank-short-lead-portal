@@ -90,12 +90,18 @@ public class BijlipayProxyController {
     @GetMapping("/lead-view-tracker")
     public ResponseEntity<String> branchLeadStatus(
             @RequestParam("bankEmpPh") String bankEmpPh,
-            @RequestParam("leadSource") String leadSource
+            @RequestParam("leadSource") String leadSource,
+            @RequestParam(value = "searchTerm", required = false, defaultValue = "") String searchTerm,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size
     ) {
         return forward(() -> bijlipayRestClient.get()
                 .uri(uri -> uri.path("/api/lead-view-tracker")
                         .queryParam("bankEmpPh", bankEmpPh)
                         .queryParam("leadSource", leadSource)
+                        .queryParam("searchTerm", searchTerm)
+                        .queryParam("page", page)
+                        .queryParam("size", size)
                         .build())
                 .retrieve()
                 .toEntity(String.class));
@@ -104,12 +110,14 @@ public class BijlipayProxyController {
     @GetMapping("/lead-view-tracker-admin")
     public ResponseEntity<String> adminLeadStatus(
             @RequestParam("leadSource") String leadSource,
+            @RequestParam(value = "searchTerm", required = false, defaultValue = "") String searchTerm,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size
     ) {
         return forward(() -> bijlipayRestClient.get()
                 .uri(uri -> uri.path("/api/lead-view-tracker-admin")
                         .queryParam("leadSource", leadSource)
+                        .queryParam("searchTerm", searchTerm)
                         .queryParam("page", page)
                         .queryParam("size", size)
                         .build())
@@ -123,6 +131,7 @@ public class BijlipayProxyController {
     public ResponseEntity<String> branchTerminalStatus(
             @RequestParam("leadSource") String leadSource,
             @RequestParam("bankEmpPh") String bankEmpPh,
+            @RequestParam(value = "searchTerm", required = false, defaultValue = "") String searchTerm,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size
     ) {
@@ -130,6 +139,7 @@ public class BijlipayProxyController {
                 .uri(uri -> uri.path("/api/lead-device-details")
                         .queryParam("leadSource", leadSource)
                         .queryParam("bankEmpPh", bankEmpPh)
+                        .queryParam("searchTerm", searchTerm)
                         .queryParam("page", page)
                         .queryParam("size", size)
                         .build())
@@ -140,12 +150,14 @@ public class BijlipayProxyController {
     @GetMapping("/lead-device-details-admin")
     public ResponseEntity<String> adminTerminalStatus(
             @RequestParam("leadSource") String leadSource,
+            @RequestParam(value = "searchTerm", required = false, defaultValue = "") String searchTerm,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size
     ) {
         return forward(() -> bijlipayRestClient.get()
                 .uri(uri -> uri.path("/api/lead-device-details-admin")
                         .queryParam("leadSource", leadSource)
+                        .queryParam("searchTerm", searchTerm)
                         .queryParam("page", page)
                         .queryParam("size", size)
                         .build())
